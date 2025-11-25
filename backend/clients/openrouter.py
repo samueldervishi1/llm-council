@@ -16,7 +16,6 @@ class OpenRouterClient:
             "HTTP-Referer": "http://localhost:3000",
             "X-Title": "LLM Council"
         }
-        logger.info(f"OpenRouter client initialized with key: {self.api_key[:15]}...")
 
     async def chat(
         self,
