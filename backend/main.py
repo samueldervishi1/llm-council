@@ -1,11 +1,12 @@
 import asyncio
-import uuid
 import json
 import logging
+import uuid
+from contextlib import asynccontextmanager
+from typing import Dict
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
-from contextlib import asynccontextmanager
 
 from config import COUNCIL_MODELS, CHAIRMAN_MODEL
 
@@ -25,7 +26,6 @@ from models import (
 )
 from clients import OpenRouterClient
 
-
 # In-memory session storage
 sessions: Dict[str, CouncilSession] = {}
 
@@ -34,7 +34,7 @@ openrouter_client = OpenRouterClient()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan():
     # Startup
     print("LLM Council API starting...")
     print(f"Council members: {[m['name'] for m in COUNCIL_MODELS]}")
@@ -175,7 +175,7 @@ async def get_peer_reviews(session_id: str):
         responses_text = ""
         for i, resp in enumerate(valid_responses):
             if resp.model_id != reviewer_id:
-                responses_text += f"\n\n--- Response {i+1} ---\n{resp.response}"
+                responses_text += f"\n\n--- Response {i + 1} ---\n{resp.response}"
 
         return f"""You are reviewing responses from other AI models to the following question:
 
@@ -354,4 +354,5 @@ async def run_full_council(session_id: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

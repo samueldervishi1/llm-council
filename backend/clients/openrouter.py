@@ -1,6 +1,8 @@
 import logging
-import httpx
 from typing import Optional
+
+import httpx
+
 from config import settings
 
 logger = logging.getLogger("llm-council.openrouter")
@@ -18,12 +20,12 @@ class OpenRouterClient:
         }
 
     async def chat(
-        self,
-        model_id: str,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        max_tokens: int = 2048,
-        temperature: float = 0.7
+            self,
+            model_id: str,
+            prompt: str,
+            system_prompt: Optional[str] = None,
+            max_tokens: int = 2048,
+            temperature: float = 0.7
     ) -> str:
         """Send a chat completion request to OpenRouter."""
         logger.info(f"OpenRouter request to model: {model_id}")

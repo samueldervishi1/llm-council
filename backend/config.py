@@ -14,7 +14,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-
 # Council member models (free OpenRouter models - different providers to avoid upstream limits)
 COUNCIL_MODELS = [
     {
