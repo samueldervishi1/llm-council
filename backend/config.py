@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     # OpenRouter base URL
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
+    # MongoDB
+    mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_database: str = "llm_council"
+
     class Config:
         env_file = ".env"
 

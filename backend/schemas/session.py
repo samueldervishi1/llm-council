@@ -30,7 +30,7 @@ class ModelResponse(BaseModel):
 
 class PeerReview(BaseModel):
     reviewer_model: str
-    rankings: List[Dict[str, Any]]  # [{model_id, rank, reasoning}]
+    rankings: List[Dict[str, Any]]
 
 
 class CouncilSession(BaseModel):
@@ -39,7 +39,7 @@ class CouncilSession(BaseModel):
     responses: List[ModelResponse] = []
     peer_reviews: List[PeerReview] = []
     final_synthesis: Optional[str] = None
-    status: str = "pending"  # pending, responses_complete, reviews_complete, synthesized
+    status: str = "pending"
 
 
 class SynthesisRequest(BaseModel):
@@ -49,3 +49,15 @@ class SynthesisRequest(BaseModel):
 class SessionResponse(BaseModel):
     session: CouncilSession
     message: str
+
+
+class SessionSummary(BaseModel):
+    id: str
+    question: str
+    status: str
+    created_at: Optional[str] = None
+
+
+class SessionListResponse(BaseModel):
+    sessions: List[SessionSummary]
+    count: int
