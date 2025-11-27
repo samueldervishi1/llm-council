@@ -9,7 +9,7 @@ from config import COUNCIL_MODELS, CHAIRMAN_MODEL, settings
 from core import setup_logging
 from core.dependencies import get_session_repository
 from db import get_database, close_database
-from routers import sessions_router, models_router
+from routers import sessions_router, models_router, shared_router
 from routers.sessions import create_session
 from schemas import QueryRequest, SessionResponse
 
@@ -106,6 +106,7 @@ app.add_middleware(
 # Include routers
 app.include_router(sessions_router)
 app.include_router(models_router)
+app.include_router(shared_router)
 
 
 @app.get("/", tags=["health"])

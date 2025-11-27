@@ -1,6 +1,8 @@
+import secrets
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from core.dependencies import get_session_repository, get_openrouter_client
 from db import SessionRepository
@@ -12,8 +14,10 @@ from schemas import (
     ConversationRound,
     SessionListResponse,
     SessionSummary,
+    ShareResponse,
 )
 from services import CouncilService
+from services.council import analyze_disagreement
 
 router = APIRouter(prefix="/session", tags=["sessions"])
 
@@ -261,6 +265,11 @@ async def get_reviews(
     current_round.peer_reviews = reviews
     current_round.status = "reviews_complete"
 
+    # Analyze disagreement
+    current_round.disagreement_analysis = analyze_disagreement(
+        current_round.responses, current_round.peer_reviews
+    )
+
     await repo.update(session)
 
     return SessionResponse(
@@ -362,6 +371,10 @@ async def run_full_council(
         reviews = await council_service.get_peer_reviews(current_round, previous_rounds)
         current_round.peer_reviews = reviews
         current_round.status = "reviews_complete"
+        # Analyze disagreement
+        current_round.disagreement_analysis = analyze_disagreement(
+            current_round.responses, current_round.peer_reviews
+        )
         await repo.update(session)
 
     # Step 3: Synthesize
@@ -375,3 +388,95 @@ async def run_full_council(
         session=session,
         message="Full council process complete!"
     )
+
+
+@router.post("/{session_id}/share", response_model=ShareResponse)
+async def share_session(
+        session_id: str,
+        request: Request,
+        repo: SessionRepository = Depends(get_session_repository)
+):
+    """
+    Share Session
+
+    Generates a public share link for a session. Anyone with the link can view
+    the session in read-only mode without authentication.
+
+    Returns the share token and full URL for sharing.
+    """
+    session = await repo.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Generate new share token if not already shared
+    if not session.is_shared or not session.share_token:
+        session.share_token = secrets.token_urlsafe(16)
+        session.is_shared = True
+        session.shared_at = datetime.now(timezone.utc).isoformat()
+        await repo.update(session)
+
+    # Build share URL from request
+    base_url = str(request.base_url).rstrip('/')
+    share_url = f"{base_url}/shared/{session.share_token}"
+
+    return ShareResponse(
+        share_token=session.share_token,
+        share_url=share_url,
+        message="Session shared successfully"
+    )
+
+
+@router.delete("/{session_id}/share")
+async def unshare_session(
+        session_id: str,
+        repo: SessionRepository = Depends(get_session_repository)
+):
+    """
+    Revoke Session Sharing
+
+    Removes public access to a shared session. The share link will no longer work.
+    """
+    session = await repo.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.is_shared:
+        return {"message": "Session was not shared"}
+
+    session.is_shared = False
+    session.share_token = None
+    session.shared_at = None
+    await repo.update(session)
+
+    return {"message": "Session sharing revoked"}
+
+
+@router.get("/{session_id}/share-info")
+async def get_share_info(
+        session_id: str,
+        request: Request,
+        repo: SessionRepository = Depends(get_session_repository)
+):
+    """
+    Get Share Info
+
+    Returns the current sharing status and share URL if the session is shared.
+    """
+    session = await repo.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.is_shared or not session.share_token:
+        return {
+            "is_shared": False,
+            "share_token": None,
+            "share_url": None
+        }
+
+    base_url = str(request.base_url).rstrip('/')
+    return {
+        "is_shared": True,
+        "share_token": session.share_token,
+        "share_url": f"{base_url}/shared/{session.share_token}",
+        "shared_at": session.shared_at
+    }

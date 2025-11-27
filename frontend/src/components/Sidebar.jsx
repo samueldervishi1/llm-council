@@ -1,13 +1,16 @@
-import { API_BASE, FRONTEND_VERSION } from '../config/api'
+import { useState } from 'react'
+import { FRONTEND_VERSION } from '../config/api'
 
 function Sidebar({
   sessions,
   currentSessionId,
   onSelectSession,
   onDeleteSession,
+  onShareSession,
   onClose,
   onNewChat,
 }) {
+  const [shareModal, setShareModal] = useState({ open: false, url: '', loading: false })
   const formatDate = (dateString) => {
     if (!dateString) return ''
     const date = new Date(dateString)
@@ -24,6 +27,23 @@ function Sidebar({
     if (!question) return 'Empty session'
     if (question.length <= maxLength) return question
     return question.substring(0, maxLength) + '...'
+  }
+
+  const handleShare = async (e, sessionId) => {
+    e.stopPropagation()
+    setShareModal({ open: true, url: '', loading: true })
+    try {
+      const data = await onShareSession(sessionId)
+      // Build frontend share URL
+      const frontendUrl = `${window.location.origin}/shared/${data.share_token}`
+      setShareModal({ open: true, url: frontendUrl, loading: false })
+    } catch (error) {
+      setShareModal({ open: false, url: '', loading: false })
+    }
+  }
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(shareModal.url)
   }
 
   return (
@@ -60,15 +80,36 @@ function Sidebar({
                   )}
                 </div>
               </div>
-              <button
-                className="session-delete"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDeleteSession(session.id)
-                }}
-              >
-                &times;
-              </button>
+              <div className="session-actions">
+                <button
+                  className="session-share"
+                  onClick={(e) => handleShare(e, session.id)}
+                  title="Share session"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                    <polyline points="16 6 12 2 8 6" />
+                    <line x1="12" y1="2" x2="12" y2="15" />
+                  </svg>
+                </button>
+                <button
+                  className="session-delete"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteSession(session.id)
+                  }}
+                  title="Delete session"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -82,6 +123,35 @@ function Sidebar({
       >
         v{FRONTEND_VERSION}
       </a>
+
+      {shareModal.open && (
+        <div
+          className="share-modal-overlay"
+          onClick={() => setShareModal({ open: false, url: '', loading: false })}
+        >
+          <div className="share-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="share-modal-header">
+              <h3>Share Session</h3>
+              <button onClick={() => setShareModal({ open: false, url: '', loading: false })}>
+                &times;
+              </button>
+            </div>
+            <div className="share-modal-content">
+              {shareModal.loading ? (
+                <p>Generating share link...</p>
+              ) : (
+                <>
+                  <p>Anyone with this link can view this session:</p>
+                  <div className="share-url-container">
+                    <input type="text" value={shareModal.url} readOnly />
+                    <button onClick={copyToClipboard}>Copy</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

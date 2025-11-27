@@ -1,9 +1,18 @@
 import { useEffect, useRef } from 'react'
 import Message from './Message'
+import VotingVisualization from './VotingVisualization'
 import LoadingIndicator from './LoadingIndicator'
 import ChatInput from './ChatInput'
 
-function ChatMessages({ messages, loading, currentStep, question, onQuestionChange, onSubmit }) {
+function ChatMessages({
+  messages,
+  loading,
+  currentStep,
+  question,
+  onQuestionChange,
+  onSubmit,
+  readOnly = false,
+}) {
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -17,22 +26,42 @@ function ChatMessages({ messages, loading, currentStep, question, onQuestionChan
   return (
     <>
       <div className="chat-messages">
-        {messages.map((msg, idx) => (
-          <Message key={idx} type={msg.type} content={msg.content} modelName={msg.modelName} />
-        ))}
+        {messages.map((msg, idx) => {
+          if (msg.type === 'voting') {
+            return (
+              <VotingVisualization
+                key={idx}
+                peerReviews={msg.peerReviews}
+                responses={msg.responses}
+                disagreementAnalysis={msg.disagreementAnalysis}
+              />
+            )
+          }
+          return (
+            <Message
+              key={idx}
+              type={msg.type}
+              content={msg.content}
+              modelName={msg.modelName}
+              disagreement={msg.disagreement}
+            />
+          )
+        })}
 
         {loading && <LoadingIndicator statusText={currentStep} />}
 
         <div ref={messagesEndRef} />
       </div>
 
-      <ChatInput
-        value={question}
-        onChange={onQuestionChange}
-        onSubmit={onSubmit}
-        disabled={loading}
-        placeholder="Ask the council another question..."
-      />
+      {!readOnly && (
+        <ChatInput
+          value={question}
+          onChange={onQuestionChange}
+          onSubmit={onSubmit}
+          disabled={loading}
+          placeholder="Ask the council another question..."
+        />
+      )}
     </>
   )
 }

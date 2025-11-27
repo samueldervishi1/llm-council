@@ -11,6 +11,7 @@ from .session import (
     SessionResponse,
     SessionSummary,
     SessionListResponse,
+    ShareResponse,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "SessionResponse",
     "SessionSummary",
     "SessionListResponse",
+    "ShareResponse",
 ]

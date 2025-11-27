@@ -19,6 +19,8 @@ function App() {
     loadSession,
     deleteSession,
     toggleSidebar,
+    shareSession,
+    exportSession,
   } = useCouncil()
 
   if (appLoading) {
@@ -35,6 +37,7 @@ function App() {
             currentSessionId={sessionId}
             onSelectSession={loadSession}
             onDeleteSession={deleteSession}
+            onShareSession={shareSession}
             onClose={toggleSidebar}
             onNewChat={() => {
               startNewChat()
@@ -44,7 +47,13 @@ function App() {
         </>
       )}
 
-      <TopBar onNewChat={startNewChat} onToggleSidebar={toggleSidebar} />
+      <TopBar
+        onNewChat={startNewChat}
+        onToggleSidebar={toggleSidebar}
+        sessionId={sessionId}
+        onShare={shareSession}
+        onExport={exportSession}
+      />
 
       {!hasMessages ? (
         <WelcomeScreen

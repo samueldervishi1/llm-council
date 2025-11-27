@@ -103,3 +103,14 @@ class SessionRepository:
         """Permanently delete a session by ID."""
         result = await self.collection.delete_one({"id": session_id})
         return result.deleted_count > 0
+
+    async def get_by_share_token(self, share_token: str) -> Optional[CouncilSession]:
+        """Get a shared session by its share token."""
+        doc = await self.collection.find_one({
+            "share_token": share_token,
+            "is_shared": True,
+            "is_deleted": {"$ne": True}
+        })
+        if doc is None:
+            return None
+        return CouncilSession(**doc)

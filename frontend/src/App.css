@@ -59,9 +59,21 @@ body {
 
 .top-bar {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid #333;
   background: #1a1a1a;
+}
+
+.top-bar-left {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.top-bar-right {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .new-chat-btn {
@@ -81,7 +93,30 @@ body {
   color: #fff;
 }
 
-/* Welcome Screen - Centered like Claude */
+.top-bar-action {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid #444;
+  color: #aaa;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.top-bar-action:hover {
+  background: #333;
+  border-color: #666;
+  color: #fff;
+}
+
+.top-bar-action svg {
+  stroke: currentColor;
+}
+
 .welcome-screen {
   flex: 1;
   display: flex;
@@ -627,15 +662,126 @@ body {
   padding: 0.25rem;
   line-height: 1;
   transition: color 0.2s;
-  opacity: 0;
-}
-
-.sidebar-session:hover .session-delete {
-  opacity: 1;
 }
 
 .session-delete:hover {
   color: #ff6b6b;
+}
+
+.session-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.sidebar-session:hover .session-actions {
+  opacity: 1;
+}
+
+.session-share {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.session-share:hover {
+  color: #d4a574;
+}
+
+/* Share Modal */
+.share-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.share-modal {
+  background: #2a2a2a;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.share-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #333;
+}
+
+.share-modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.share-modal-header button {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.share-modal-header button:hover {
+  color: #fff;
+}
+
+.share-modal-content {
+  padding: 1.25rem;
+}
+
+.share-modal-content p {
+  color: #aaa;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.share-url-container {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.share-url-container input {
+  flex: 1;
+  padding: 0.75rem;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-size: 0.85rem;
+}
+
+.share-url-container button {
+  padding: 0.75rem 1.25rem;
+  background: #d4a574;
+  border: none;
+  border-radius: 8px;
+  color: #1a1a1a;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.share-url-container button:hover {
+  background: #e5b685;
 }
 
 /* Sidebar scrollbar */
@@ -668,4 +814,273 @@ body {
 
 .sidebar-version:hover {
   color: #d4a574;
+}
+
+/* Shared Session View */
+.shared-view .chat-messages {
+  padding-bottom: 80px;
+}
+
+.shared-top-bar {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shared-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #d4a574;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.shared-badge svg {
+  stroke: #d4a574;
+}
+
+.shared-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #1a1a1a;
+  text-align: center;
+  padding: 2rem;
+}
+
+.shared-error h1 {
+  color: #e0e0e0;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.shared-error p {
+  color: #888;
+  margin-bottom: 2rem;
+}
+
+.shared-home-link {
+  padding: 0.75rem 1.5rem;
+  background: #d4a574;
+  color: #1a1a1a;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.shared-home-link:hover {
+  background: #e5b685;
+}
+
+.shared-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.shared-footer a {
+  color: #888;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.shared-footer a:hover {
+  color: #d4a574;
+}
+
+/* Disagreement Indicators */
+.message.has-disagreement {
+  border-left: 3px solid #f59e0b;
+}
+
+.disagreement-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+  cursor: help;
+}
+
+.disagreement-badge svg {
+  stroke: #f59e0b;
+}
+
+/* Voting Visualization */
+.voting-visualization {
+  max-width: 800px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+.voting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: #aaa;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.voting-toggle:hover {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #ddd;
+}
+
+.voting-toggle svg {
+  stroke: #d4a574;
+}
+
+.voting-chevron {
+  margin-left: auto;
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+}
+
+.voting-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.voting-content {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+}
+
+.voting-content h4 {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.voting-leaderboard {
+  margin-bottom: 1.5rem;
+}
+
+.voting-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.voting-row.top-ranked {
+  background: rgba(212, 165, 116, 0.1);
+  margin: 0 -0.5rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border-bottom: none;
+}
+
+.voting-position {
+  font-weight: 600;
+  color: #888;
+  width: 2rem;
+}
+
+.voting-row.top-ranked .voting-position {
+  color: #d4a574;
+}
+
+.voting-model {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voting-bar-container {
+  width: 100px;
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.voting-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #d4a574, #e5b685);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.voting-score {
+  font-size: 0.85rem;
+  color: #aaa;
+  width: 2rem;
+  text-align: right;
+}
+
+.voting-disputed {
+  color: #f59e0b;
+  font-size: 0.9rem;
+}
+
+.voting-matrix {
+  overflow-x: auto;
+}
+
+.voting-matrix table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.voting-matrix th,
+.voting-matrix td {
+  padding: 0.5rem;
+  text-align: center;
+  border: 1px solid #333;
+}
+
+.voting-matrix th {
+  background: #2a2a2a;
+  color: #888;
+  font-weight: 500;
+}
+
+.voting-matrix td {
+  color: #aaa;
+}
+
+.voting-matrix td:first-child {
+  text-align: left;
+  color: #ccc;
+}
+
+.voting-matrix .rank-first {
+  background: rgba(212, 165, 116, 0.2);
+  color: #d4a574;
+  font-weight: 600;
 }

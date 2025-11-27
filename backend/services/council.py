@@ -1,12 +1,100 @@
 import asyncio
 import json
-from typing import List, Optional
+from statistics import mean, stdev
+from typing import List, Optional, Dict
 
 from clients import OpenRouterClient
 from config import COUNCIL_MODELS, CHAIRMAN_MODEL
 from core.logging import logger
 from schemas import ModelResponse, PeerReview, ConversationRound
 from .prompts import Prompts
+
+
+def analyze_disagreement(
+        responses: List[ModelResponse],
+        peer_reviews: List[PeerReview]
+) -> List[Dict]:
+    """
+    Analyze disagreement among council members based on peer reviews.
+
+    Returns a list of disagreement analysis for each response, containing:
+    - model_id: The model whose response was analyzed
+    - model_name: Human-readable model name
+    - ranks_received: All ranks given by reviewers
+    - mean_rank: Average rank
+    - disagreement_score: 0 (consensus) to 1 (high disagreement)
+    - has_disagreement: Whether significant disagreement exists
+    """
+    if not peer_reviews or not responses:
+        return []
+
+    valid_responses = [r for r in responses if not r.error]
+    if len(valid_responses) < 2:
+        return []
+
+    # Map response index (1-based) to model info
+    response_map = {
+        i + 1: {"model_id": r.model_id, "model_name": r.model_name}
+        for i, r in enumerate(valid_responses)
+    }
+
+    # Collect ranks for each response
+    ranks_by_response: Dict[int, List[int]] = {i: [] for i in response_map.keys()}
+
+    for review in peer_reviews:
+        for ranking in review.rankings:
+            if isinstance(ranking, dict) and "response_num" in ranking and "rank" in ranking:
+                resp_num = ranking.get("response_num")
+                rank = ranking.get("rank")
+                if resp_num in ranks_by_response and isinstance(rank, (int, float)):
+                    ranks_by_response[resp_num].append(int(rank))
+
+    # Calculate disagreement for each response
+    analysis = []
+    num_responses = len(valid_responses)
+
+    for resp_num, ranks in ranks_by_response.items():
+        model_info = response_map.get(resp_num, {})
+
+        if len(ranks) < 2:
+            # Not enough data to calculate disagreement
+            analysis.append({
+                "model_id": model_info.get("model_id", ""),
+                "model_name": model_info.get("model_name", ""),
+                "ranks_received": ranks,
+                "mean_rank": ranks[0] if ranks else 0,
+                "disagreement_score": 0.0,
+                "has_disagreement": False
+            })
+            continue
+
+        avg_rank = mean(ranks)
+
+        # Calculate standard deviation
+        try:
+            std = stdev(ranks)
+        except:
+            std = 0.0
+
+        # Normalize disagreement score (0-1)
+        # Max possible stdev for ranks 1 to N is approximately (N-1)/2
+        max_std = (num_responses - 1) / 2
+        disagreement_score = min(std / max_std, 1.0) if max_std > 0 else 0.0
+
+        # Consider high disagreement if score > 0.5 or if ranks span more than half the range
+        rank_range = max(ranks) - min(ranks) if ranks else 0
+        has_disagreement = disagreement_score > 0.5 or rank_range >= num_responses / 2
+
+        analysis.append({
+            "model_id": model_info.get("model_id", ""),
+            "model_name": model_info.get("model_name", ""),
+            "ranks_received": ranks,
+            "mean_rank": round(avg_rank, 2),
+            "disagreement_score": round(disagreement_score, 2),
+            "has_disagreement": has_disagreement
+        })
+
+    return analysis
 
 
 class CouncilService:
