@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # CORS - comma-separated list of allowed origins for production
     cors_origins: str = ""
 
+    # Environment - set to "production" to disable docs endpoints
+    environment: str = "development"
+
     class Config:
         env_file = ".env"
 

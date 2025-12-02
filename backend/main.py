@@ -80,6 +80,9 @@ tags_metadata = [
     },
 ]
 
+# Disable docs in production
+is_production = settings.environment == "production"
+
 app = FastAPI(
     title="LLM Council API",
     description=DESCRIPTION,
@@ -92,6 +95,9 @@ app = FastAPI(
     license_info={
         "name": "MIT",
     },
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # CORS middleware
