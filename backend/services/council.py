@@ -104,13 +104,27 @@ class CouncilService:
     def __init__(self, client: OpenRouterClient):
         self.client = client
 
-    def _get_active_models(self, selected_models: Optional[List[str]] = None) -> List[dict]:
-        """Get the models to use based on selection. If None, returns all council models."""
+    def _get_active_models(self, selected_models: Optional[List[str]] = None, include_chairman: bool = False) -> List[dict]:
+        """
+        Get the models to use based on selection.
+
+        Args:
+            selected_models: List of model IDs to filter. If None, returns all council models.
+            include_chairman: If True, chairman can be included (for chat mode).
+                            If False, chairman is excluded even if selected (for formal mode).
+        """
         if selected_models is None:
+            if include_chairman:
+                return COUNCIL_MODELS + [CHAIRMAN_MODEL]
             return COUNCIL_MODELS
 
-        # Filter models based on selection (including chairman if selected)
-        all_models = COUNCIL_MODELS + [CHAIRMAN_MODEL]
+        # Build list of available models based on mode
+        if include_chairman:
+            all_models = COUNCIL_MODELS + [CHAIRMAN_MODEL]
+        else:
+            # In formal mode, exclude chairman - they only synthesize
+            all_models = COUNCIL_MODELS
+
         return [m for m in all_models if m["id"] in selected_models]
 
     async def get_council_responses(
@@ -155,8 +169,8 @@ class CouncilService:
                     response_time_ms=None
                 )
 
-        # Use selected models or all council models
-        active_models = self._get_active_models(current_round.selected_models)
+        # Use selected models or all council models (exclude chairman in formal mode)
+        active_models = self._get_active_models(current_round.selected_models, include_chairman=False)
         tasks = [query_model(model) for model in active_models]
         responses = await asyncio.gather(*tasks)
         return list(responses)
@@ -208,8 +222,8 @@ class CouncilService:
                     rankings=[{"error": str(e)}]
                 )
 
-        # Use selected models or all council models for reviews
-        active_models = self._get_active_models(current_round.selected_models)
+        # Use selected models or all council models for reviews (exclude chairman)
+        active_models = self._get_active_models(current_round.selected_models, include_chairman=False)
         tasks = [get_review(model) for model in active_models]
         reviews = await asyncio.gather(*tasks)
         return list(reviews)
@@ -267,10 +281,8 @@ class CouncilService:
         chat_messages: List[ChatMessage] = []
 
         # Use selected models or all models (council + chairman) in chat mode
-        if current_round.selected_models:
-            all_chat_models = self._get_active_models(current_round.selected_models)
-        else:
-            all_chat_models = COUNCIL_MODELS + [CHAIRMAN_MODEL]
+        # In chat mode, chairman participates as a regular member
+        all_chat_models = self._get_active_models(current_round.selected_models, include_chairman=True)
 
         logger.info(f"Starting group chat with {len(all_chat_models)} models, {num_turns} turns each")
 

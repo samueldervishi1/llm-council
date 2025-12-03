@@ -1,0 +1,404 @@
+/* Layout Component */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.app-layout .sidebar {
+  position: relative;
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  flex-shrink: 0;
+}
+
+.app-layout .sidebar.collapsed {
+  width: 60px;
+}
+
+/* Collapsed Sidebar Content */
+.sidebar-collapsed-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  align-items: center;
+}
+
+.sidebar-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-icon-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-icon-btn.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-icon-btn:focus,
+.sidebar-icon-btn:focus-visible {
+  outline: none;
+}
+
+/* Expanded Sidebar Header */
+.app-layout .sidebar-header {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-toggle-btn:focus,
+.sidebar-toggle-btn:focus-visible {
+  outline: none;
+}
+
+.sidebar-new-chat-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-new-chat-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-new-chat-btn:focus,
+.sidebar-new-chat-btn:focus-visible {
+  outline: none;
+}
+
+/* Search */
+.app-layout .sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.app-layout .sidebar-search:focus-within {
+  border-color: var(--accent-color);
+}
+
+.app-layout .sidebar-search svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.app-layout .sidebar-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.app-layout .sidebar-search input::placeholder {
+  color: var(--text-secondary);
+}
+
+.app-layout .search-clear {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-layout .search-clear:hover {
+  color: var(--text-primary);
+}
+
+.app-layout .search-clear:focus,
+.app-layout .search-clear:focus-visible {
+  outline: none;
+}
+
+/* Sessions */
+.app-layout .sidebar-sessions {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem;
+}
+
+.app-layout .sidebar-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.app-layout .sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.app-layout .sidebar-session {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.25rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.app-layout .sidebar-session:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.app-layout .sidebar-session.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+}
+
+.app-layout .sidebar-session.pinned {
+  border-style: dashed;
+}
+
+.app-layout .session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-layout .session-question {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-layout .session-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.app-layout .session-date {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.app-layout .session-rounds {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.app-layout .session-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.app-layout .sidebar-session:hover .session-actions {
+  opacity: 1;
+}
+
+.app-layout .session-actions button {
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-layout .session-actions button:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-color);
+}
+
+.app-layout .session-actions button:focus,
+.app-layout .session-actions button:focus-visible {
+  outline: none;
+}
+
+.app-layout .session-pin.active {
+  color: var(--accent-color);
+}
+
+.app-layout .session-delete {
+  font-size: 1.2rem;
+}
+
+.app-layout .session-edit-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-footer-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-footer-btn.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sidebar-footer-btn:focus,
+.sidebar-footer-btn:focus-visible {
+  outline: none;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+/* Scrollbar Styling */
+.app-layout .sidebar-sessions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-layout .sidebar-sessions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-layout .sidebar-sessions::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.app-layout .sidebar-sessions::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .app-layout .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 1000;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .app-layout .sidebar.collapsed {
+    width: 60px;
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+}

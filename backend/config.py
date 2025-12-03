@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # Environment - set to "production" to disable docs endpoints
     environment: str = "development"
 
+    # API Authentication - optional API key for protecting endpoints
+    # If set, requests must include X-API-Key header or api_key query param
+    api_key: str = ""
+
+    # Rate limiting
+    rate_limit_requests: int = 100  # requests per minute
+    rate_limit_window: int = 60  # window in seconds
+
     class Config:
         env_file = ".env"
 
@@ -32,8 +40,8 @@ COUNCIL_MODELS = [
         "provider": "openrouter"
     },
     {
-        "id": "nvidia/nemotron-nano-12b-v2-vl:free",
-        "name": "NVIDIA: Nemotron Nano 12B 2 VL",
+        "id": "google/gemma-3n-e4b-it:free",
+        "name": "Google Gemma 3N E4B",
         "provider": "openrouter"
     },
     {

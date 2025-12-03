@@ -1,10 +1,21 @@
-import { useEffect } from 'react'
-import { AppLoader, TopBar, WelcomeScreen, ChatMessages, Sidebar } from './components'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  AppLoader,
+  TopBar,
+  WelcomeScreen,
+  ChatMessages,
+  Sidebar,
+  CommandPalette,
+} from './components'
 import useCouncil from './hooks/useCouncil'
 import useTheme from './hooks/useTheme'
 import './App.css'
 
 function App() {
+  const { sessionId: urlSessionId } = useParams()
+  const navigate = useNavigate()
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const {
     question,
     setQuestion,
@@ -35,23 +46,55 @@ function App() {
 
   const { theme, toggleTheme } = useTheme()
 
+  // Handle new chat navigation
+  const handleNewChat = () => {
+    startNewChat()
+    navigate('/')
+  }
+
+  // Load session from URL if present
+  useEffect(() => {
+    if (urlSessionId && urlSessionId !== sessionId && !appLoading) {
+      loadSession(urlSessionId)
+    }
+  }, [urlSessionId, appLoading])
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ctrl+N or Cmd+N for new chat
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      // Ctrl+K or Cmd+K for command palette
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
-        startNewChat()
+        setIsCommandPaletteOpen(true)
+        return
       }
-      // Ctrl+B or Cmd+B for toggle sidebar
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+      // Ctrl+/ or Cmd+/ for command palette (alternative)
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault()
+        setIsCommandPaletteOpen(true)
+        return
+      }
+      // Alt+N for new chat
+      if (e.altKey && e.key === 'n') {
+        e.preventDefault()
+        handleNewChat()
+        return
+      }
+      // Ctrl+\ or Cmd+\ for toggle sidebar (like VS Code)
+      if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+        e.preventDefault()
+        toggleSidebar()
+      }
+      // Alt+S as alternative for sidebar
+      if (e.altKey && e.key === 's') {
         e.preventDefault()
         toggleSidebar()
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [startNewChat, toggleSidebar])
+    // Use capture phase to ensure we get the event before browser
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [handleNewChat, toggleSidebar])
 
   if (appLoading) {
     return <AppLoader />
@@ -65,14 +108,13 @@ function App() {
           <Sidebar
             sessions={sessions}
             currentSessionId={sessionId}
-            onSelectSession={loadSession}
             onDeleteSession={deleteSession}
             onRenameSession={renameSession}
             onTogglePinSession={togglePinSession}
             onShareSession={shareSession}
             onClose={toggleSidebar}
             onNewChat={() => {
-              startNewChat()
+              handleNewChat()
               toggleSidebar()
             }}
           />
@@ -80,13 +122,14 @@ function App() {
       )}
 
       <TopBar
-        onNewChat={startNewChat}
+        onNewChat={handleNewChat}
         onToggleSidebar={toggleSidebar}
         sessionId={sessionId}
         onShare={shareSession}
         onExport={exportSession}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
       {!hasMessages ? (
@@ -95,12 +138,6 @@ function App() {
           onQuestionChange={setQuestion}
           onSubmit={startCouncil}
           loading={loading}
-          mode={mode}
-          onModeChange={setMode}
-          availableModels={availableModels}
-          selectedModels={selectedModels}
-          onToggleModel={toggleModel}
-          onSelectAllModels={selectAllModels}
         />
       ) : (
         <ChatMessages
@@ -112,6 +149,15 @@ function App() {
           onSubmit={startCouncil}
         />
       )}
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        sessions={sessions}
+        onNewChat={handleNewChat}
+        onExport={exportSession}
+        currentSessionId={sessionId}
+      />
     </div>
   )
 }

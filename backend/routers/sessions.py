@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 
-from core.dependencies import get_session_repository, get_openrouter_client
+from core.dependencies import get_session_repository, get_openrouter_client, verify_api_key
+from core.rate_limit import check_rate_limit
 from db import SessionRepository
 from schemas import (
     QueryRequest,
@@ -65,7 +66,9 @@ async def list_sessions(
 @router.post("", response_model=SessionResponse)
 async def create_session(
         request: QueryRequest,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Create New Session
@@ -128,7 +131,8 @@ async def get_session(
 @router.delete("/{session_id}")
 async def delete_session(
         session_id: str,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
 ):
     """
     Delete Session
@@ -146,7 +150,8 @@ async def delete_session(
 async def update_session(
         session_id: str,
         request: SessionUpdateRequest,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
 ):
     """
     Update Session
@@ -182,7 +187,9 @@ async def update_session(
 async def continue_session(
         session_id: str,
         request: ContinueRequest,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Continue Session
@@ -234,7 +241,9 @@ async def continue_session(
 async def get_responses(
         session_id: str,
         repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service)
+        council_service: CouncilService = Depends(get_council_service),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Collect Council Responses
@@ -278,7 +287,9 @@ async def get_responses(
 async def get_reviews(
         session_id: str,
         repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service)
+        council_service: CouncilService = Depends(get_council_service),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Collect Peer Reviews
@@ -341,7 +352,9 @@ async def get_reviews(
 async def synthesize(
         session_id: str,
         repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service)
+        council_service: CouncilService = Depends(get_council_service),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Synthesize Final Answer
@@ -393,7 +406,9 @@ async def synthesize(
 async def run_full_council(
         session_id: str,
         repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service)
+        council_service: CouncilService = Depends(get_council_service),
+        _auth: bool = Depends(verify_api_key),
+        _rate_limit: None = Depends(check_rate_limit)
 ):
     """
     Run Full Council Process
@@ -473,7 +488,8 @@ async def run_full_council(
 async def share_session(
         session_id: str,
         request: Request,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
 ):
     """
     Share Session
@@ -508,7 +524,8 @@ async def share_session(
 @router.delete("/{session_id}/share")
 async def unshare_session(
         session_id: str,
-        repo: SessionRepository = Depends(get_session_repository)
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
 ):
     """
     Revoke Session Sharing

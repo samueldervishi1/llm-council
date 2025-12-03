@@ -38,6 +38,7 @@ class QueryRequest(BaseModel):
         ...,
         description="The question or prompt to send to all council members",
         min_length=1,
+        max_length=10000,
         json_schema_extra={"example": "What are the best practices for building scalable APIs?"}
     )
     mode: CouncilMode = Field(
@@ -46,6 +47,7 @@ class QueryRequest(BaseModel):
     )
     selected_models: Optional[List[str]] = Field(
         default=None,
+        max_length=20,
         description="List of model IDs to use. If not provided, all available models are used."
     )
 
@@ -56,6 +58,7 @@ class ContinueRequest(BaseModel):
         ...,
         description="The follow-up question for the next round of deliberation",
         min_length=1,
+        max_length=10000,
         json_schema_extra={"example": "Can you elaborate on the caching strategies mentioned?"}
     )
 
@@ -180,7 +183,7 @@ class SessionSummary(BaseModel):
 
 class SessionUpdateRequest(BaseModel):
     """Request to update session properties."""
-    title: Optional[str] = Field(None, description="New title for the session")
+    title: Optional[str] = Field(None, max_length=200, description="New title for the session")
     is_pinned: Optional[bool] = Field(None, description="Pin or unpin the session")
 
 

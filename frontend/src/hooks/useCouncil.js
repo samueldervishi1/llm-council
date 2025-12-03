@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import axios from 'axios'
-import { API_BASE } from '../config/api'
+import { apiClient } from '../config/api'
+import { roundToMessages } from '../utils'
 
 function useCouncil() {
   const [question, setQuestion] = useState('')
@@ -11,17 +11,43 @@ function useCouncil() {
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [mode, setMode] = useState('formal') // 'formal' or 'chat'
+  const [mode, setMode] = useState(() => {
+    // Load mode from localStorage or default to 'formal'
+    const savedMode = localStorage.getItem('llm-council-mode')
+    return savedMode || 'formal'
+  })
   const [availableModels, setAvailableModels] = useState([])
-  const [selectedModels, setSelectedModels] = useState([]) // Empty = all models
+  const [selectedModels, setSelectedModels] = useState(() => {
+    // Load selected models from localStorage
+    const saved = localStorage.getItem('llm-council-selected-models')
+    return saved ? JSON.parse(saved) : []
+  })
+
+  // Persist mode to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('llm-council-mode', mode)
+  }, [mode])
+
+  // Persist selected models to localStorage when they change
+  useEffect(() => {
+    if (selectedModels.length > 0) {
+      localStorage.setItem('llm-council-selected-models', JSON.stringify(selectedModels))
+    }
+  }, [selectedModels])
 
   // Fetch available models on mount
   const fetchModels = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/models`)
+      const res = await apiClient.get('/models')
       setAvailableModels(res.data.models)
-      // Default: select all models
-      setSelectedModels(res.data.models.map((m) => m.id))
+
+      // If no models selected yet, select all by default
+      const savedModels = localStorage.getItem('llm-council-selected-models')
+      if (!savedModels) {
+        const allModelIds = res.data.models.map((m) => m.id)
+        setSelectedModels(allModelIds)
+        localStorage.setItem('llm-council-selected-models', JSON.stringify(allModelIds))
+      }
     } catch (error) {
       console.error('Error fetching models:', error)
     }
@@ -37,7 +63,7 @@ function useCouncil() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/sessions`)
+      const res = await apiClient.get('/sessions')
       setSessions(res.data.sessions)
     } catch (error) {
       console.error('Error fetching sessions:', error)
@@ -54,105 +80,11 @@ function useCouncil() {
     setMessages((prev) => [...prev, { type, content, modelName, timestamp: new Date(), ...extras }])
   }
 
-  // Convert a round to messages
-  const roundToMessages = (round) => {
-    const msgs = []
-
-    // User question
-    msgs.push({
-      type: 'user',
-      content: round.question,
-      timestamp: new Date(),
-    })
-
-    // Check if this is a chat mode round
-    if (round.mode === 'chat' && round.chat_messages && round.chat_messages.length > 0) {
-      // Chat mode: display messages as a group chat
-      for (const chatMsg of round.chat_messages) {
-        msgs.push({
-          type: 'chat',
-          content: chatMsg.content,
-          modelName: chatMsg.model_name,
-          replyTo: chatMsg.reply_to,
-          responseTime: chatMsg.response_time_ms,
-          timestamp: new Date(),
-        })
-      }
-      return msgs
-    }
-
-    // Formal mode: traditional council responses
-    // Build disagreement lookup by model_id
-    const disagreementMap = {}
-    if (round.disagreement_analysis) {
-      for (const analysis of round.disagreement_analysis) {
-        disagreementMap[analysis.model_id] = analysis
-      }
-    }
-
-    // Council responses
-    if (round.responses && round.responses.length > 0) {
-      msgs.push({
-        type: 'system',
-        content: 'Gathering responses from the council...',
-        timestamp: new Date(),
-      })
-
-      for (const resp of round.responses) {
-        if (resp.error) {
-          msgs.push({
-            type: 'error',
-            content: `Error: ${resp.error}`,
-            modelName: resp.model_name,
-            timestamp: new Date(),
-          })
-        } else {
-          msgs.push({
-            type: 'council',
-            content: resp.response,
-            modelName: resp.model_name,
-            responseTime: resp.response_time_ms,
-            timestamp: new Date(),
-            disagreement: disagreementMap[resp.model_id] || null,
-          })
-        }
-      }
-
-      // Add voting visualization after responses if we have peer reviews
-      if (round.peer_reviews && round.peer_reviews.length > 0) {
-        msgs.push({
-          type: 'voting',
-          peerReviews: round.peer_reviews,
-          responses: round.responses,
-          disagreementAnalysis: round.disagreement_analysis,
-          timestamp: new Date(),
-        })
-      }
-    }
-
-    // Chairman's synthesis
-    if (round.final_synthesis) {
-      msgs.push({
-        type: 'system',
-        content: 'Chairman Grok is reviewing all responses...',
-        timestamp: new Date(),
-      })
-      msgs.push({
-        type: 'chairman',
-        content: round.final_synthesis,
-        modelName: 'Grok 4.1 Fast (Chairman)',
-        timestamp: new Date(),
-      })
-    }
-
-    return msgs
-  }
-
   const loadSession = async (id) => {
     try {
       setLoading(true)
       setCurrentStep('Loading session...')
-      const res = await axios.get(`${API_BASE}/session/${id}`)
+      const res = await apiClient.get(`/session/${id}`)
       const session = res.data.session
 
       setSessionId(session.id)
@@ -177,7 +109,7 @@ function useCouncil() {
 
   const deleteSession = async (id) => {
     try {
-      await axios.delete(`${API_BASE}/session/${id}`)
+      await apiClient.delete(`/session/${id}`)
       await fetchSessions()
       if (sessionId === id) {
         startNewChat()
@@ -189,7 +121,7 @@ function useCouncil() {
 
   const renameSession = async (id, newTitle) => {
     try {
-      await axios.patch(`${API_BASE}/session/${id}`, { title: newTitle })
+      await apiClient.patch(`/session/${id}`, { title: newTitle })
       await fetchSessions()
     } catch (error) {
       console.error('Error renaming session:', error)
@@ -202,7 +134,7 @@ function useCouncil() {
       // Find current pin status
       const session = sessions.find((s) => s.id === id)
       const newPinned = !session?.is_pinned
-      await axios.patch(`${API_BASE}/session/${id}`, { is_pinned: newPinned })
+      await apiClient.patch(`/session/${id}`, { is_pinned: newPinned })
       await fetchSessions()
     } catch (error) {
       console.error('Error toggling pin:', error)
@@ -212,7 +144,7 @@ function useCouncil() {
 
   const shareSession = async (id) => {
     try {
-      const res = await axios.post(`${API_BASE}/session/${id}/share`)
+      const res = await apiClient.post(`/session/${id}/share`)
       return res.data
     } catch (error) {
       console.error('Error sharing session:', error)
@@ -222,7 +154,7 @@ function useCouncil() {
 
   const unshareSession = async (id) => {
     try {
-      await axios.delete(`${API_BASE}/session/${id}/share`)
+      await apiClient.delete(`/session/${id}/share`)
     } catch (error) {
       console.error('Error unsharing session:', error)
       throw error
@@ -231,7 +163,7 @@ function useCouncil() {
 
   const getShareInfo = async (id) => {
     try {
-      const res = await axios.get(`${API_BASE}/session/${id}/share-info`)
+      const res = await apiClient.get(`/session/${id}/share-info`)
       return res.data
     } catch (error) {
       console.error('Error getting share info:', error)
@@ -243,7 +175,7 @@ function useCouncil() {
     try {
       setLoading(true)
       setCurrentStep('Loading shared session...')
-      const res = await axios.get(`${API_BASE}/shared/${shareToken}`)
+      const res = await apiClient.get(`/shared/${shareToken}`)
       const session = res.data.session
 
       const loadedMessages = []
@@ -283,7 +215,7 @@ function useCouncil() {
       // If we have an existing session, continue it; otherwise create new
       if (currentSessionId) {
         setCurrentStep('Continuing conversation...')
-        const continueRes = await axios.post(`${API_BASE}/session/${currentSessionId}/continue`, {
+        const continueRes = await apiClient.post(`/session/${currentSessionId}/continue`, {
           question: userQuestion,
         })
         // Get the mode from the session (inherit from first round)
@@ -291,7 +223,7 @@ function useCouncil() {
         activeMode = session.rounds[0]?.mode || mode
       } else {
         setCurrentStep('Creating session...')
-        const createRes = await axios.post(`${API_BASE}/query`, {
+        const createRes = await apiClient.post('/query', {
           question: userQuestion,
           mode: mode,
           selected_models: selectedModels.length > 0 ? selectedModels : null,
@@ -305,7 +237,7 @@ function useCouncil() {
         // Chat mode: use run-all for group chat
         setCurrentStep('Models are typing...')
 
-        const chatRes = await axios.post(`${API_BASE}/session/${currentSessionId}/run-all`)
+        const chatRes = await apiClient.post(`/session/${currentSessionId}/run-all`)
         const session = chatRes.data.session
         const currentRound = session.rounds[session.rounds.length - 1]
 
@@ -334,7 +266,7 @@ function useCouncil() {
         setCurrentStep('Council is thinking...')
         addMessage('system', 'Gathering responses from the council...')
 
-        const responsesRes = await axios.post(`${API_BASE}/session/${currentSessionId}/responses`)
+        const responsesRes = await apiClient.post(`/session/${currentSessionId}/responses`)
         const session = responsesRes.data.session
         const currentRound = session.rounds[session.rounds.length - 1]
 
@@ -349,12 +281,12 @@ function useCouncil() {
         }
 
         setCurrentStep('Council is reviewing...')
-        await axios.post(`${API_BASE}/session/${currentSessionId}/reviews`)
+        await apiClient.post(`/session/${currentSessionId}/reviews`)
 
         setCurrentStep('Chairman Grok is deciding...')
         addMessage('system', 'Chairman Grok is reviewing all responses...')
 
-        const synthesisRes = await axios.post(`${API_BASE}/session/${currentSessionId}/synthesize`)
+        const synthesisRes = await apiClient.post(`/session/${currentSessionId}/synthesize`)
         const finalSession = synthesisRes.data.session
         const finalRound = finalSession.rounds[finalSession.rounds.length - 1]
 
@@ -396,14 +328,25 @@ function useCouncil() {
   }
 
   const selectAllModels = () => {
-    setSelectedModels(availableModels.map((m) => m.id))
+    // Check if all models are currently selected
+    const allSelected =
+      availableModels.length > 0 && availableModels.every((m) => selectedModels.includes(m.id))
+
+    if (allSelected) {
+      // Deselect all (but keep at least one - the chairman)
+      const chairman = availableModels.find((m) => m.is_chairman)
+      setSelectedModels(chairman ? [chairman.id] : [availableModels[0]?.id])
+    } else {
+      // Select all
+      setSelectedModels(availableModels.map((m) => m.id))
+    }
   }
 
   const exportSession = async () => {
     if (!sessionId) return
 
     try {
-      const res = await axios.get(`${API_BASE}/session/${sessionId}`)
+      const res = await apiClient.get(`/session/${sessionId}`)
       const session = res.data.session
 
       let markdown = `# LLM Council Session\n\n`

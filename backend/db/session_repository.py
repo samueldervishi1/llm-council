@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -17,8 +17,8 @@ class SessionRepository:
     async def create(self, session: CouncilSession) -> CouncilSession:
         """Create a new session in the database."""
         doc = session.model_dump()
-        doc["created_at"] = datetime.utcnow()
-        doc["updated_at"] = datetime.utcnow()
+        doc["created_at"] = datetime.now(timezone.utc)
+        doc["updated_at"] = datetime.now(timezone.utc)
         await self.collection.insert_one(doc)
         return session
 
@@ -36,7 +36,7 @@ class SessionRepository:
     async def update(self, session: CouncilSession) -> CouncilSession:
         """Update an existing session."""
         doc = session.model_dump()
-        doc["updated_at"] = datetime.utcnow()
+        doc["updated_at"] = datetime.now(timezone.utc)
         await self.collection.update_one(
             {"id": session.id},
             {"$set": doc}
@@ -74,13 +74,14 @@ class SessionRepository:
 
     async def soft_delete(self, session_id: str) -> bool:
         """Soft delete a session by ID."""
+        now = datetime.now(timezone.utc)
         result = await self.collection.update_one(
             {"id": session_id, "is_deleted": {"$ne": True}},
             {
                 "$set": {
                     "is_deleted": True,
-                    "deleted_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow()
+                    "deleted_at": now.isoformat(),
+                    "updated_at": now
                 }
             }
         )
@@ -94,7 +95,7 @@ class SessionRepository:
                 "$set": {
                     "is_deleted": False,
                     "deleted_at": None,
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.now(timezone.utc)
                 }
             }
         )

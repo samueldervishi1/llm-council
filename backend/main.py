@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import COUNCIL_MODELS, CHAIRMAN_MODEL, settings
 from core import setup_logging
 from core.dependencies import get_session_repository
-from db import get_database, close_database
+from db import get_database, close_database, ensure_indexes
 from routers import sessions_router, models_router, shared_router
 from routers.sessions import create_session
 from schemas import QueryRequest, SessionResponse
@@ -31,6 +31,10 @@ async def lifespan(_app: FastAPI):
         # Ping to verify connection
         await db.command("ping")
         print(f"MongoDB connected successfully (database: {settings.mongodb_database})")
+
+        # Create indexes for optimal query performance
+        await ensure_indexes(db)
+        print("MongoDB indexes ensured")
     except Exception as e:
         print(f"MongoDB connection failed: {e}")
 

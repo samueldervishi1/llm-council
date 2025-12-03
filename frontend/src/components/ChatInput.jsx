@@ -28,8 +28,8 @@ function ChatInput({ value, onChange, onSubmit, disabled, placeholder, centered 
       </div>
       <div className="input-hints">
         <span>Ctrl+Enter to send</span>
-        <span>Ctrl+N new chat</span>
-        <span>Ctrl+B sidebar</span>
+        <span>Alt+N new chat</span>
+        <span>Ctrl+\ sidebar</span>
       </div>
     </div>
   )

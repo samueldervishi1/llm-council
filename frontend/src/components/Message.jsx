@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeSanitize from 'rehype-sanitize'
 
 // Color palette for different models
 const MODEL_COLORS = {
@@ -78,7 +79,7 @@ function Message({ type, content, modelName, disagreement, replyTo, responseTime
             </button>
           </div>
           <div className="chat-content">
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{content}</ReactMarkdown>
           </div>
         </div>
         <div className="chat-avatar" style={{ backgroundColor: color }}>
@@ -146,7 +147,7 @@ function Message({ type, content, modelName, disagreement, replyTo, responseTime
         </div>
       )}
       <div className="message-content">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{content}</ReactMarkdown>
       </div>
     </div>
   )
