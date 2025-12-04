@@ -10,6 +10,7 @@ from db import SessionRepository
 from schemas import (
     QueryRequest,
     ContinueRequest,
+    BranchRequest,
     SessionResponse,
     CouncilSession,
     ConversationRound,
@@ -576,3 +577,158 @@ async def get_share_info(
         "share_url": f"{base_url}/shared/{session.share_token}",
         "shared_at": session.shared_at
     }
+
+
+@router.post("/{session_id}/branch", response_model=SessionResponse)
+async def branch_session(
+        session_id: str,
+        request: BranchRequest,
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
+):
+    """
+    Branch Session
+
+    Creates a new session that is a fork of an existing session at a specific point.
+    The new session will contain all rounds up to (and including) the specified round index.
+
+    - **from_round_index**: Round index to branch from (0-indexed). If None, branches from current state (all rounds).
+
+    **Use Cases:**
+    - Branch from current state: Explore different paths without losing the original discussion
+    - Branch from specific round: Go back and try a different question at a specific point
+
+    Returns the newly created branched session.
+    """
+    # Get original session
+    original_session = await repo.get(session_id)
+    if original_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Determine which rounds to copy
+    from_round_index = request.from_round_index
+    if from_round_index is None:
+        # Branch from current state - copy all rounds
+        rounds_to_copy = original_session.rounds
+        from_round_index = len(original_session.rounds) - 1 if original_session.rounds else None
+    else:
+        # Validate round index
+        if from_round_index < 0 or from_round_index >= len(original_session.rounds):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid round index. Session has {len(original_session.rounds)} rounds (0-{len(original_session.rounds) - 1})"
+            )
+        # Copy rounds up to and including the specified index
+        rounds_to_copy = original_session.rounds[:from_round_index + 1]
+
+    # Create new branched session
+    new_session_id = str(uuid.uuid4())
+    branched_session = CouncilSession(
+        id=new_session_id,
+        title=f"{original_session.title or 'Untitled'} (Branch)",
+        rounds=rounds_to_copy,
+        parent_session_id=session_id,
+        branched_from_round=from_round_index,
+        is_deleted=False,
+        is_pinned=False,
+        is_shared=False
+    )
+
+    # Save branched session
+    await repo.create(branched_session)
+
+    return SessionResponse(
+        session=branched_session,
+        message=f"Session branched successfully from round {from_round_index + 1 if from_round_index is not None else 'current state'}"
+    )
+
+
+@router.delete("s/all")
+async def delete_all_sessions(
+        confirm: bool = False,
+        include_pinned: bool = False,
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
+):
+    """
+    Clear All History
+
+    Deletes all chat sessions (soft delete).
+    By default, pinned sessions are preserved.
+
+    **Warning:** This action cannot be undone!
+
+    - **confirm**: Must be True to proceed (safety check)
+    - **include_pinned**: If True, also deletes pinned sessions (default: False)
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Must set confirm=true to delete all sessions"
+        )
+
+    deleted_count = await repo.soft_delete_all(include_pinned=include_pinned)
+
+    if include_pinned:
+        message = f"All {deleted_count} sessions deleted successfully"
+    else:
+        message = f"{deleted_count} sessions deleted (pinned sessions preserved)"
+
+    return {
+        "message": message,
+        "deleted_count": deleted_count
+    }
+
+
+@router.get("s/export")
+async def export_sessions(
+        format: str = "json",
+        include_deleted: bool = False,
+        repo: SessionRepository = Depends(get_session_repository),
+        _auth: bool = Depends(verify_api_key)
+):
+    """
+    Export All Data
+
+    Exports all chat sessions in the specified format.
+    Useful for backing up your data or importing into other tools.
+
+    - **format**: Export format - "json" or "markdown" (default: "json")
+    - **include_deleted**: Include soft-deleted sessions (default: False)
+
+    Returns the export data with appropriate Content-Disposition header for download.
+    """
+    from fastapi.responses import Response
+    from services.export import format_as_json, format_as_markdown
+
+    # Validate format
+    if format not in ["json", "markdown", "md"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid format. Must be 'json' or 'markdown'"
+        )
+
+    # Normalize format
+    if format == "md":
+        format = "markdown"
+
+    # Get all sessions
+    sessions = await repo.get_all_full(include_deleted=include_deleted)
+
+    # Format based on requested type
+    if format == "json":
+        content = format_as_json(sessions)
+        media_type = "application/json"
+        filename = f"llm_council_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    else:  # markdown
+        content = format_as_markdown(sessions)
+        media_type = "text/markdown"
+        filename = f"llm_council_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )

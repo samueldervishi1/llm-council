@@ -40,13 +40,13 @@ COUNCIL_MODELS = [
         "provider": "openrouter"
     },
     {
-        "id": "google/gemma-3n-e4b-it:free",
-        "name": "Google Gemma 3N E4B",
+        "id": "meta-llama/llama-3.2-3b-instruct:free",
+        "name": "Llama 3.2 3B",
         "provider": "openrouter"
     },
     {
-        "id": "google/gemma-3-27b-it:free",
-        "name": "Gemma 3 27B",
+        "id": "microsoft/phi-3-mini-128k-instruct:free",
+        "name": "Phi-3 Mini",
         "provider": "openrouter"
     },
     {
@@ -56,9 +56,9 @@ COUNCIL_MODELS = [
     },
 ]
 
-# Chairman model (Grok 4.1 Fast via OpenRouter)
+# Chairman model - using Qwen which is very stable
 CHAIRMAN_MODEL = {
-    "id": "x-ai/grok-4.1-fast:free",
-    "name": "Grok 4.1 Fast",
+    "id": "qwen/qwen-2-7b-instruct:free",
+    "name": "Qwen 2 7B",
     "provider": "openrouter"
 }

@@ -31,8 +31,10 @@ async def ensure_indexes(database: AsyncIOMotorDatabase) -> None:
         return
 
     sessions_collection = database["sessions"]
+    settings_collection = database["user_settings"]
 
     try:
+        # Sessions indexes
         # Index for session lookup by ID (most common query)
         await sessions_collection.create_index(
             [("id", ASCENDING)],
@@ -58,6 +60,14 @@ async def ensure_indexes(database: AsyncIOMotorDatabase) -> None:
             [("is_pinned", ASCENDING), ("pinned_at", DESCENDING)],
             sparse=True,
             name="idx_pinned_sessions"
+        )
+
+        # User settings indexes
+        # Index for user_id lookup
+        await settings_collection.create_index(
+            [("user_id", ASCENDING)],
+            unique=True,
+            name="idx_user_id"
         )
 
         _indexes_created = True

@@ -157,6 +157,17 @@ class CouncilSession(BaseModel):
     is_shared: bool = Field(default=False, description="Whether the session is publicly shared")
     share_token: Optional[str] = Field(None, description="Unique token for public sharing")
     shared_at: Optional[str] = Field(None, description="ISO timestamp when session was shared")
+    # Branching fields
+    parent_session_id: Optional[str] = Field(None, description="Session ID this was branched from")
+    branched_from_round: Optional[int] = Field(None, description="Round index this was branched from (0-indexed)")
+
+
+class BranchRequest(BaseModel):
+    """Request to branch a session at a specific point."""
+    from_round_index: Optional[int] = Field(
+        None,
+        description="Round index to branch from (0-indexed). If None, branches from current state (all rounds)"
+    )
 
 
 class SynthesisRequest(BaseModel):

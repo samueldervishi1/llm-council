@@ -5,11 +5,12 @@ from fastapi import Header, HTTPException, Query, status
 
 from clients import OpenRouterClient
 from config import settings
-from db import get_database, SessionRepository
+from db import get_database, SessionRepository, SettingsRepository
 
 # Singleton client instance
 _openrouter_client: OpenRouterClient | None = None
 _session_repository: SessionRepository | None = None
+_settings_repository: SettingsRepository | None = None
 
 
 async def get_session_repository() -> SessionRepository:
@@ -19,6 +20,15 @@ async def get_session_repository() -> SessionRepository:
         database = await get_database()
         _session_repository = SessionRepository(database)
     return _session_repository
+
+
+async def get_settings_repository() -> SettingsRepository:
+    """Get the settings repository dependency."""
+    global _settings_repository
+    if _settings_repository is None:
+        database = await get_database()
+        _settings_repository = SettingsRepository(database)
+    return _settings_repository
 
 
 def get_openrouter_client() -> OpenRouterClient:

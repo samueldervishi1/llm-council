@@ -149,6 +149,7 @@ function Message({ type, content, modelName, disagreement, replyTo, responseTime
       <div className="message-content">
         <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{content}</ReactMarkdown>
       </div>
+      {type === 'user' && <div className="user-avatar">U</div>}
     </div>
   )
 }

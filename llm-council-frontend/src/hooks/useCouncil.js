@@ -11,6 +11,8 @@ function useCouncil() {
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sessionLoadError, setSessionLoadError] = useState(null)
+  const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [mode, setMode] = useState(() => {
     // Load mode from localStorage or default to 'formal'
     const savedMode = localStorage.getItem('llm-council-mode')
@@ -81,10 +83,23 @@ function useCouncil() {
   }
 
   const loadSession = async (id) => {
+    const startTime = Date.now()
+    const minLoadingTime = 2000 // Show loader for minimum 15 seconds (FOR TESTING)
+
     try {
+      setIsLoadingSession(true)
+      setSessionLoadError(null)
       setLoading(true)
       setCurrentStep('Loading session...')
-      const res = await apiClient.get(`/session/${id}`)
+
+      // Create a timeout promise (30 seconds for Render cold starts)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 30000)
+      )
+
+      // Race between the API call and the timeout
+      const res = await Promise.race([apiClient.get(`/session/${id}`), timeoutPromise])
+
       const session = res.data.session
 
       setSessionId(session.id)
@@ -97,11 +112,37 @@ function useCouncil() {
         }
       }
 
+      // Ensure minimum loading time for better UX
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, minLoadingTime - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
+
       setMessages(loadedMessages)
       setSidebarOpen(false)
+      setSessionLoadError(null)
     } catch (error) {
       console.error('Error loading session:', error)
+
+      // Ensure minimum loading time even for errors
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, minLoadingTime - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
+
+      if (error.message === 'timeout') {
+        setSessionLoadError('The server is taking too long to respond. Please try again later.')
+      } else {
+        setSessionLoadError(
+          error.response?.data?.detail || 'Something went wrong. Please check again later.'
+        )
+      }
     } finally {
+      setIsLoadingSession(false)
       setLoading(false)
       setCurrentStep('')
     }
@@ -423,6 +464,8 @@ function useCouncil() {
     getShareInfo,
     loadSharedSession,
     exportSession,
+    sessionLoadError,
+    isLoadingSession,
   }
 }
 

@@ -5,11 +5,13 @@ import {
   TopBar,
   WelcomeScreen,
   ChatMessages,
+  ChatSkeleton,
   Sidebar,
   CommandPalette,
 } from './components'
 import useCouncil from './hooks/useCouncil'
 import useTheme from './hooks/useTheme'
+import { apiClient } from './config/api'
 import './App.css'
 
 function App() {
@@ -42,14 +44,76 @@ function App() {
     toggleSidebar,
     shareSession,
     exportSession,
+    sessionLoadError,
+    isLoadingSession,
   } = useCouncil()
 
   const { theme, toggleTheme } = useTheme()
+  const [userSettings, setUserSettings] = useState({ enabled_beta_features: [] })
+  const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' })
+
+  // Load user settings on mount
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      try {
+        const res = await apiClient.get('/settings')
+        setUserSettings(res.data.settings)
+      } catch (error) {
+        console.error('Failed to load user settings:', error)
+      }
+    }
+    loadUserSettings()
+  }, [])
 
   // Handle new chat navigation
   const handleNewChat = () => {
     startNewChat()
     navigate('/')
+  }
+
+  // Handle branch session
+  const handleBranch = async (fromRoundIndex = null) => {
+    if (!sessionId) return
+    try {
+      const res = await apiClient.post(`/session/${sessionId}/branch`, {
+        from_round_index: fromRoundIndex,
+      })
+      // Navigate to new branched session (response has session inside)
+      const newSessionId = res.data.session?.id || res.data.id
+      navigate(`/sessions/${newSessionId}`)
+      loadSession(newSessionId)
+    } catch (error) {
+      console.error('Failed to branch session:', error)
+      setErrorModal({
+        open: true,
+        title: 'Failed to Create Branch',
+        message:
+          error.response?.data?.detail ||
+          'An error occurred while creating the branch. Please try again.',
+      })
+    }
+  }
+
+  // Handle branch from sidebar (specific session)
+  const handleBranchFromSidebar = async (targetSessionId) => {
+    try {
+      const res = await apiClient.post(`/session/${targetSessionId}/branch`, {
+        from_round_index: null, // Branch from current state
+      })
+      const newSessionId = res.data.session?.id || res.data.id
+      navigate(`/sessions/${newSessionId}`)
+      loadSession(newSessionId)
+      toggleSidebar() // Close sidebar after branching
+    } catch (error) {
+      console.error('Failed to branch session:', error)
+      setErrorModal({
+        open: true,
+        title: 'Failed to Create Branch',
+        message:
+          error.response?.data?.detail ||
+          'An error occurred while creating the branch. Please try again.',
+      })
+    }
   }
 
   // Load session from URL if present
@@ -112,6 +176,8 @@ function App() {
             onRenameSession={renameSession}
             onTogglePinSession={togglePinSession}
             onShareSession={shareSession}
+            onBranchSession={handleBranchFromSidebar}
+            branchingEnabled={userSettings.enabled_beta_features?.includes('branching')}
             onClose={toggleSidebar}
             onNewChat={() => {
               handleNewChat()
@@ -127,12 +193,22 @@ function App() {
         sessionId={sessionId}
         onShare={shareSession}
         onExport={exportSession}
+        onBranch={handleBranch}
+        branchingEnabled={userSettings.enabled_beta_features?.includes('branching')}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
-      {!hasMessages ? (
+      {isLoadingSession ? (
+        <ChatSkeleton />
+      ) : sessionLoadError ? (
+        <div className="session-load-error">
+          <h2>Something went wrong</h2>
+          <p>{sessionLoadError}</p>
+          <button onClick={handleNewChat}>Go to Home</button>
+        </div>
+      ) : !hasMessages ? (
         <WelcomeScreen
           question={question}
           onQuestionChange={setQuestion}
@@ -158,6 +234,40 @@ function App() {
         onExport={exportSession}
         currentSessionId={sessionId}
       />
+
+      {errorModal.open && (
+        <div
+          className="delete-modal-overlay"
+          onClick={() => setErrorModal({ open: false, title: '', message: '' })}
+        >
+          <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon error">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <h3>{errorModal.title}</h3>
+            <p>{errorModal.message}</p>
+            <div className="delete-modal-actions">
+              <button
+                className="delete-cancel"
+                onClick={() => setErrorModal({ open: false, title: '', message: '' })}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

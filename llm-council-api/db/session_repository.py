@@ -116,3 +116,46 @@ class SessionRepository:
         if doc is None:
             return None
         return CouncilSession(**doc)
+
+    async def soft_delete_all(self, include_pinned: bool = False) -> int:
+        """
+        Soft delete all sessions.
+        Returns the count of deleted sessions.
+
+        Args:
+            include_pinned: If True, also delete pinned sessions. Default False (preserve pinned).
+        """
+        now = datetime.now(timezone.utc)
+        query = {"is_deleted": {"$ne": True}}
+
+        if not include_pinned:
+            query["is_pinned"] = {"$ne": True}
+
+        result = await self.collection.update_many(
+            query,
+            {
+                "$set": {
+                    "is_deleted": True,
+                    "deleted_at": now.isoformat(),
+                    "updated_at": now
+                }
+            }
+        )
+        return result.modified_count
+
+    async def get_all_full(self, include_deleted: bool = False) -> List[CouncilSession]:
+        """
+        Get all sessions with full data (for export).
+        Returns complete session objects including all rounds and responses.
+        """
+        query = {}
+        if not include_deleted:
+            query["is_deleted"] = {"$ne": True}
+
+        sessions = []
+        cursor = self.collection.find(query).sort("created_at", -1)
+
+        async for doc in cursor:
+            sessions.append(CouncilSession(**doc))
+
+        return sessions

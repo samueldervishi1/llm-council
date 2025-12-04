@@ -9,7 +9,7 @@ from config import COUNCIL_MODELS, CHAIRMAN_MODEL, settings
 from core import setup_logging
 from core.dependencies import get_session_repository
 from db import get_database, close_database, ensure_indexes
-from routers import sessions_router, models_router, shared_router
+from routers import sessions_router, models_router, shared_router, settings_router
 from routers.sessions import create_session
 from schemas import QueryRequest, SessionResponse
 
@@ -82,6 +82,10 @@ tags_metadata = [
         "name": "models",
         "description": "View configured council member models and the chairman model.",
     },
+    {
+        "name": "settings",
+        "description": "User settings and preferences - configure timeouts, analytics, debug mode, and other options.",
+    },
 ]
 
 # Disable docs in production
@@ -122,6 +126,7 @@ app.add_middleware(
 app.include_router(sessions_router)
 app.include_router(models_router)
 app.include_router(shared_router)
+app.include_router(settings_router)
 
 
 @app.get("/", tags=["health"])

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { FRONTEND_URL } from '../config/api'
 import './Layout.css'
 
 function Layout({
@@ -83,7 +84,7 @@ function Layout({
     setShareModal({ open: true, url: '', loading: true })
     try {
       const data = await onShareSession(sessionId)
-      const frontendUrl = `${window.location.origin}/shared/${data.share_token}`
+      const frontendUrl = `${FRONTEND_URL}/shared/${data.share_token}`
       setShareModal({ open: true, url: frontendUrl, loading: false })
     } catch (error) {
       setShareModal({ open: false, url: '', loading: false })

@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Pin, Edit2, Share2, X, Search as SearchIcon, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Pin,
+  Edit2,
+  Share2,
+  X,
+  Search as SearchIcon,
+  Settings as SettingsIcon,
+  GitBranch,
+} from 'lucide-react'
+import { FRONTEND_URL } from '../config/api'
 
 function Sidebar({
   sessions,
@@ -9,15 +18,21 @@ function Sidebar({
   onRenameSession,
   onTogglePinSession,
   onShareSession,
+  onBranchSession,
   onClose,
   onNewChat,
+  branchingEnabled = false,
 }) {
   const [shareModal, setShareModal] = useState({ open: false, url: '', loading: false })
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, sessionId: null, title: '' })
+  const [showToast, setShowToast] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editTitle, setEditTitle] = useState('')
+  const [openMenuId, setOpenMenuId] = useState(null)
   const searchInputRef = useRef(null)
   const editInputRef = useRef(null)
+  const menuRef = useRef(null)
   const location = useLocation()
 
   // Filter sessions based on search query
@@ -32,6 +47,17 @@ function Sidebar({
   // Separate pinned and unpinned sessions
   const pinnedSessions = filteredSessions.filter((s) => s.is_pinned)
   const recentSessions = filteredSessions.filter((s) => !s.is_pinned)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Ctrl+F to focus search (only when sidebar is open)
   useEffect(() => {
@@ -50,6 +76,12 @@ function Sidebar({
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
   }, [searchQuery])
+
+  const toggleMenu = (e, sessionId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setOpenMenuId(openMenuId === sessionId ? null : sessionId)
+  }
   const formatDate = (dateString) => {
     if (!dateString) return ''
     const date = new Date(dateString)
@@ -62,7 +94,7 @@ function Sidebar({
     return date.toLocaleDateString()
   }
 
-  const truncateQuestion = (question, maxLength = 40) => {
+  const truncateQuestion = (question, maxLength = 30) => {
     if (!question) return 'Empty session'
     if (question.length <= maxLength) return question
     return question.substring(0, maxLength) + '...'
@@ -74,16 +106,30 @@ function Sidebar({
     setShareModal({ open: true, url: '', loading: true })
     try {
       const data = await onShareSession(sessionId)
-      // Build frontend share URL
-      const frontendUrl = `${window.location.origin}/shared/${data.share_token}`
+      // Build frontend share URL using configured frontend URL
+      const frontendUrl = `${FRONTEND_URL}/shared/${data.share_token}`
       setShareModal({ open: true, url: frontendUrl, loading: false })
     } catch (error) {
       setShareModal({ open: false, url: '', loading: false })
     }
   }
 
+  const handleBranch = async (e, sessionId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onBranchSession) {
+      await onBranchSession(sessionId)
+    }
+  }
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(shareModal.url)
+    setShowToast(true)
+
+    // Hide toast after 2 seconds
+    setTimeout(() => {
+      setShowToast(false)
+    }, 2000)
   }
 
   const startEditing = (e, session) => {
@@ -124,6 +170,27 @@ function Sidebar({
     e.preventDefault()
     e.stopPropagation()
     await onTogglePinSession(sessionId)
+  }
+
+  const confirmDelete = (e, session) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeleteConfirm({
+      open: true,
+      sessionId: session.id,
+      title: session.title || session.question || 'this chat',
+    })
+  }
+
+  const handleDelete = async () => {
+    if (deleteConfirm.sessionId) {
+      await onDeleteSession(deleteConfirm.sessionId)
+      setDeleteConfirm({ open: false, sessionId: null, title: '' })
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ open: false, sessionId: null, title: '' })
   }
 
   return (
@@ -196,50 +263,93 @@ function Sidebar({
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <span className="session-question">
-                          {truncateQuestion(session.title || session.question)}
-                        </span>
+                        <>
+                          <div className="session-name">
+                            {truncateQuestion(session.title || session.question)}
+                          </div>
+                          <div className="session-meta">
+                            {formatDate(session.created_at)} - {session.round_count}{' '}
+                            {session.round_count === 1 ? 'round' : 'rounds'}
+                          </div>
+                        </>
                       )}
-                      <div className="session-meta">
-                        <span className="session-date">{formatDate(session.created_at)}</span>
-                        {session.round_count > 1 && (
-                          <span className="session-rounds">{session.round_count} rounds</span>
-                        )}
-                      </div>
                     </div>
                     <div className="session-actions">
-                      <button
-                        className="session-pin active"
-                        onClick={(e) => handlePin(e, session.id)}
-                        title="Unpin session"
+                      <div
+                        className="session-menu-container"
+                        ref={openMenuId === session.id ? menuRef : null}
                       >
-                        <Pin size={14} fill="currentColor" />
-                      </button>
-                      <button
-                        className="session-edit"
-                        onClick={(e) => startEditing(e, session)}
-                        title="Rename session"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        className="session-share"
-                        onClick={(e) => handleShare(e, session.id)}
-                        title="Share session"
-                      >
-                        <Share2 size={14} />
-                      </button>
-                      <button
-                        className="session-delete"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          onDeleteSession(session.id)
-                        }}
-                        title="Delete session"
-                      >
-                        <X size={16} />
-                      </button>
+                        <button
+                          className="session-menu-btn"
+                          onClick={(e) => toggleMenu(e, session.id)}
+                          title="More options"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="12" cy="5" r="1" />
+                            <circle cx="12" cy="19" r="1" />
+                          </svg>
+                        </button>
+                        {openMenuId === session.id && (
+                          <div className="session-menu-dropdown">
+                            <button
+                              onClick={(e) => {
+                                handlePin(e, session.id)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Pin size={14} fill={session.is_pinned ? 'currentColor' : 'none'} />
+                              {session.is_pinned ? 'Unpin' : 'Pin'}
+                            </button>
+                            {branchingEnabled && (
+                              <button
+                                onClick={(e) => {
+                                  handleBranch(e, session.id)
+                                  setOpenMenuId(null)
+                                }}
+                              >
+                                <GitBranch size={14} />
+                                Branch
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                startEditing(e, session)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Edit2 size={14} />
+                              Rename
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                handleShare(e, session.id)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Share2 size={14} />
+                              Share
+                            </button>
+                            <button
+                              className="danger"
+                              onClick={(e) => {
+                                confirmDelete(e, session)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <X size={14} />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -279,76 +389,93 @@ function Sidebar({
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <span className="session-question">
-                          {session.is_pinned && (
-                            <span className="pin-icon">
-                              <Pin size={12} fill="currentColor" />
-                            </span>
-                          )}
-                          {truncateQuestion(session.title || session.question)}
-                        </span>
+                        <>
+                          <div className="session-name">
+                            {truncateQuestion(session.title || session.question)}
+                          </div>
+                          <div className="session-meta">
+                            {formatDate(session.created_at)} - {session.round_count}{' '}
+                            {session.round_count === 1 ? 'round' : 'rounds'}
+                          </div>
+                        </>
                       )}
-                      <div className="session-meta">
-                        <span className="session-date">{formatDate(session.created_at)}</span>
-                        {session.round_count > 1 && (
-                          <span className="session-rounds">{session.round_count} rounds</span>
-                        )}
-                      </div>
                     </div>
                     <div className="session-actions">
-                      <button
-                        className={`session-pin ${session.is_pinned ? 'active' : ''}`}
-                        onClick={(e) => handlePin(e, session.id)}
-                        title={session.is_pinned ? 'Unpin session' : 'Pin session'}
+                      <div
+                        className="session-menu-container"
+                        ref={openMenuId === session.id ? menuRef : null}
                       >
-                        <Pin size={14} fill={session.is_pinned ? 'currentColor' : 'none'} />
-                      </button>
-                      <button
-                        className="session-edit"
-                        onClick={(e) => startEditing(e, session)}
-                        title="Rename session"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
+                        <button
+                          className="session-menu-btn"
+                          onClick={(e) => toggleMenu(e, session.id)}
+                          title="More options"
                         >
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        className="session-share"
-                        onClick={(e) => handleShare(e, session.id)}
-                        title="Share session"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                          <polyline points="16 6 12 2 8 6" />
-                          <line x1="12" y1="2" x2="12" y2="15" />
-                        </svg>
-                      </button>
-                      <button
-                        className="session-delete"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          onDeleteSession(session.id)
-                        }}
-                        title="Delete session"
-                      >
-                        <X size={16} />
-                      </button>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="12" cy="5" r="1" />
+                            <circle cx="12" cy="19" r="1" />
+                          </svg>
+                        </button>
+                        {openMenuId === session.id && (
+                          <div className="session-menu-dropdown">
+                            <button
+                              onClick={(e) => {
+                                handlePin(e, session.id)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Pin size={14} fill={session.is_pinned ? 'currentColor' : 'none'} />
+                              {session.is_pinned ? 'Unpin' : 'Pin'}
+                            </button>
+                            {branchingEnabled && (
+                              <button
+                                onClick={(e) => {
+                                  handleBranch(e, session.id)
+                                  setOpenMenuId(null)
+                                }}
+                              >
+                                <GitBranch size={14} />
+                                Branch
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                startEditing(e, session)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Edit2 size={14} />
+                              Rename
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                handleShare(e, session.id)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <Share2 size={14} />
+                              Share
+                            </button>
+                            <button
+                              className="danger"
+                              onClick={(e) => {
+                                confirmDelete(e, session)
+                                setOpenMenuId(null)
+                              }}
+                            >
+                              <X size={14} />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -366,6 +493,30 @@ function Sidebar({
         <SettingsIcon size={16} />
         Settings
       </Link>
+
+      {deleteConfirm.open && (
+        <div className="delete-modal-overlay" onClick={cancelDelete}>
+          <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon">
+              <X size={24} />
+            </div>
+            <h3>Delete Chat?</h3>
+            <p>
+              Are you sure you want to delete{' '}
+              <strong>"{truncateQuestion(deleteConfirm.title, 30)}"</strong>? This action cannot be
+              undone.
+            </p>
+            <div className="delete-modal-actions">
+              <button className="delete-cancel" onClick={cancelDelete}>
+                Cancel
+              </button>
+              <button className="delete-confirm" onClick={handleDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {shareModal.open && (
         <div
@@ -393,6 +544,22 @@ function Sidebar({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {showToast && (
+        <div className="copy-toast">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Link copied to clipboard!
         </div>
       )}
     </div>

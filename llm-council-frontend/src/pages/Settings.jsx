@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FRONTEND_VERSION } from '../config/api'
+import { FRONTEND_VERSION, apiClient } from '../config/api'
 import './Settings.css'
 
 function Settings({
@@ -16,10 +16,71 @@ function Settings({
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('general')
 
+  // Backend settings state
+  const [settings, setSettings] = useState({
+    auto_delete_days: null,
+    enabled_beta_features: [],
+  })
+  const [availableBetaFeatures, setAvailableBetaFeatures] = useState([])
+  const [settingsLoading, setSettingsLoading] = useState(true)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+
+  // Confirmation modals
+  const [clearHistoryModal, setClearHistoryModal] = useState({ open: false, includePinned: false })
+  const [exportModal, setExportModal] = useState({ open: false, format: 'json', loading: false })
+
+  // Load settings and available beta features from backend
+  useEffect(() => {
+    loadSettings()
+    loadBetaFeatures()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      setSettingsLoading(true)
+      const res = await apiClient.get('/settings')
+      setSettings(res.data.settings)
+    } catch (error) {
+      console.error('Failed to load settings:', error)
+    } finally {
+      setSettingsLoading(false)
+    }
+  }
+
+  const loadBetaFeatures = async () => {
+    try {
+      const res = await apiClient.get('/settings/beta-features')
+      setAvailableBetaFeatures(res.data)
+    } catch (error) {
+      console.error('Failed to load beta features:', error)
+    }
+  }
+
+  const saveSettings = async (updates) => {
+    try {
+      const res = await apiClient.patch('/settings', updates)
+      setSettings(res.data.settings)
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 2000)
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+      alert('Failed to save settings. Please try again.')
+    }
+  }
+
+  const toggleBetaFeature = (featureId) => {
+    const currentFeatures = settings.enabled_beta_features || []
+    const isEnabled = currentFeatures.includes(featureId)
+    const newFeatures = isEnabled
+      ? currentFeatures.filter((id) => id !== featureId)
+      : [...currentFeatures, featureId]
+    saveSettings({ enabled_beta_features: newFeatures })
+  }
+
   // Handle URL tab parameter
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['general', 'models', 'about'].includes(tabParam)) {
+    if (tabParam && ['general', 'models', 'data', 'advanced', 'about'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -32,6 +93,50 @@ function Settings({
 
   const allSelected =
     availableModels.length > 0 && availableModels.every((m) => selectedModels.includes(m.id))
+
+  // Clear all history handler
+  const handleClearHistory = async () => {
+    try {
+      const res = await apiClient.delete('/sessions/all', {
+        params: {
+          confirm: true,
+          include_pinned: clearHistoryModal.includePinned,
+        },
+      })
+      alert(res.data.message)
+      setClearHistoryModal({ open: false, includePinned: false })
+    } catch (error) {
+      console.error('Failed to clear history:', error)
+      alert('Failed to clear history. Please try again.')
+    }
+  }
+
+  // Export data handler
+  const handleExport = async () => {
+    try {
+      setExportModal({ ...exportModal, loading: true })
+      const response = await apiClient.get('/sessions/export', {
+        params: { format: exportModal.format },
+        responseType: 'blob',
+      })
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      const extension = exportModal.format === 'markdown' ? 'md' : 'json'
+      link.setAttribute('download', `llm_council_export_${Date.now()}.${extension}`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+
+      setExportModal({ open: false, format: 'json', loading: false })
+    } catch (error) {
+      console.error('Failed to export data:', error)
+      alert('Failed to export data. Please try again.')
+      setExportModal({ ...exportModal, loading: false })
+    }
+  }
 
   return (
     <div className="settings-page">
@@ -52,6 +157,18 @@ function Settings({
           onClick={() => handleTabChange('models')}
         >
           Models
+        </button>
+        <button
+          className={`settings-tab ${activeTab === 'data' ? 'active' : ''}`}
+          onClick={() => handleTabChange('data')}
+        >
+          Data
+        </button>
+        <button
+          className={`settings-tab ${activeTab === 'advanced' ? 'active' : ''}`}
+          onClick={() => handleTabChange('advanced')}
+        >
+          Advanced
         </button>
         <button
           className={`settings-tab ${activeTab === 'about' ? 'active' : ''}`}
@@ -220,6 +337,135 @@ function Settings({
           </div>
         )}
 
+        {activeTab === 'data' && (
+          <div className="settings-section">
+            <h2>Data & Privacy</h2>
+
+            <div className="settings-option disabled">
+              <div className="settings-option-info">
+                <h3>
+                  Auto-delete Old Chats
+                  <span className="coming-soon-badge">Coming Soon</span>
+                </h3>
+                <p>Automatically delete chat sessions after a certain period</p>
+              </div>
+              <div className="settings-option-control">
+                <select
+                  value={settings.auto_delete_days || 'never'}
+                  className="settings-select"
+                  disabled
+                >
+                  <option value="never">Never</option>
+                  <option value="30">30 days</option>
+                  <option value="60">60 days</option>
+                  <option value="90">90 days</option>
+                </select>
+              </div>
+            </div>
+
+            <h2>Data Management</h2>
+
+            <div className="settings-action">
+              <div className="settings-action-info">
+                <h3>Export All Data</h3>
+                <p>Download all your chat sessions and conversations</p>
+              </div>
+              <button
+                className="settings-action-btn"
+                onClick={() => setExportModal({ open: true, format: 'json', loading: false })}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export Data
+              </button>
+            </div>
+
+            <div className="settings-action danger">
+              <div className="settings-action-info">
+                <h3>Clear All History</h3>
+                <p>Permanently delete all chat sessions (pinned chats preserved by default)</p>
+              </div>
+              <button
+                className="settings-action-btn danger"
+                onClick={() => setClearHistoryModal({ open: true, includePinned: false })}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+                Clear All History
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'advanced' && (
+          <div className="settings-section">
+            <h2>Beta Features</h2>
+            <p className="section-description">
+              Opt into specific experimental features. Each feature can be enabled independently.
+            </p>
+
+            {availableBetaFeatures.length === 0 ? (
+              <p className="no-beta-features">Loading beta features...</p>
+            ) : (
+              availableBetaFeatures.map((feature) => {
+                const isEnabled = settings.enabled_beta_features?.includes(feature.id) || false
+                const isComingSoon = feature.status === 'coming_soon'
+                const isAvailable = feature.status === 'available'
+
+                return (
+                  <div
+                    key={feature.id}
+                    className={`settings-option ${isComingSoon ? 'disabled' : ''}`}
+                  >
+                    <div className="settings-option-info">
+                      <h3>
+                        {feature.name}
+                        {isComingSoon && <span className="coming-soon-badge">Coming Soon</span>}
+                        {feature.status === 'deprecated' && (
+                          <span className="deprecated-badge">Deprecated</span>
+                        )}
+                      </h3>
+                      <p>{feature.description}</p>
+                    </div>
+                    <div className="settings-option-control">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          disabled={isComingSoon}
+                          onChange={() => toggleBetaFeature(feature.id)}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+
         {activeTab === 'about' && (
           <div className="settings-section about-section">
             <div className="about-logo">
@@ -296,6 +542,151 @@ function Settings({
           </div>
         )}
       </div>
+
+      {/* Settings Saved Toast */}
+      {settingsSaved && (
+        <div className="settings-toast">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Settings saved!
+        </div>
+      )}
+
+      {/* Clear History Confirmation Modal */}
+      {clearHistoryModal.open && (
+        <div
+          className="modal-overlay"
+          onClick={() => setClearHistoryModal({ open: false, includePinned: false })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-icon danger">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <h3>Clear All History?</h3>
+            <p>
+              This will permanently delete all chat sessions.
+              {!clearHistoryModal.includePinned && ' Pinned chats will be preserved.'}
+            </p>
+            <div className="modal-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={clearHistoryModal.includePinned}
+                  onChange={(e) =>
+                    setClearHistoryModal({ ...clearHistoryModal, includePinned: e.target.checked })
+                  }
+                />
+                <span>Also delete pinned chats</span>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="modal-btn cancel"
+                onClick={() => setClearHistoryModal({ open: false, includePinned: false })}
+              >
+                Cancel
+              </button>
+              <button className="modal-btn danger" onClick={handleClearHistory}>
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Data Modal */}
+      {exportModal.open && (
+        <div
+          className="modal-overlay"
+          onClick={() => setExportModal({ open: false, format: 'json', loading: false })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
+            <h3>Export All Data</h3>
+            <p>Choose a format to download all your chat sessions</p>
+            <div className="export-format-options">
+              <label
+                className={`export-format-option ${exportModal.format === 'json' ? 'active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="format"
+                  value="json"
+                  checked={exportModal.format === 'json'}
+                  onChange={(e) => setExportModal({ ...exportModal, format: e.target.value })}
+                />
+                <div>
+                  <strong>JSON</strong>
+                  <small>Machine-readable format, includes all data</small>
+                </div>
+              </label>
+              <label
+                className={`export-format-option ${exportModal.format === 'markdown' ? 'active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="format"
+                  value="markdown"
+                  checked={exportModal.format === 'markdown'}
+                  onChange={(e) => setExportModal({ ...exportModal, format: e.target.value })}
+                />
+                <div>
+                  <strong>Markdown</strong>
+                  <small>Human-readable format, easy to read and share</small>
+                </div>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="modal-btn cancel"
+                onClick={() => setExportModal({ open: false, format: 'json', loading: false })}
+                disabled={exportModal.loading}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-btn primary"
+                onClick={handleExport}
+                disabled={exportModal.loading}
+              >
+                {exportModal.loading ? 'Exporting...' : 'Export'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

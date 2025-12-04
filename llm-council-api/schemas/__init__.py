@@ -9,6 +9,7 @@ from .session import (
     PeerReview,
     ConversationRound,
     CouncilSession,
+    BranchRequest,
     SynthesisRequest,
     SessionResponse,
     SessionSummary,
@@ -17,6 +18,11 @@ from .session import (
     ShareResponse,
     AvailableModel,
     AvailableModelsResponse,
+)
+from .user_settings import (
+    UserSettings,
+    UserSettingsUpdate,
+    UserSettingsResponse,
 )
 
 __all__ = [
@@ -30,6 +36,7 @@ __all__ = [
     "PeerReview",
     "ConversationRound",
     "CouncilSession",
+    "BranchRequest",
     "SynthesisRequest",
     "SessionResponse",
     "SessionSummary",
@@ -38,4 +45,7 @@ __all__ = [
     "ShareResponse",
     "AvailableModel",
     "AvailableModelsResponse",
+    "UserSettings",
+    "UserSettingsUpdate",
+    "UserSettingsResponse",
 ]
