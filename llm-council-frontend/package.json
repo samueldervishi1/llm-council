@@ -8,7 +8,7 @@
     "minimumReleaseAge": "1440"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -16,12 +16,15 @@
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json}\""
   },
   "dependencies": {
+    "@vitejs/plugin-rsc": "^0.5.5",
     "axios": "^1.13.2",
     "lucide-react": "^0.555.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.9.6",
+    "react-router-dom": "^7.10.1",
+    "react-server-dom-parcel": "^19.2.1",
+    "react-server-dom-webpack": "^19.2.1",
     "rehype-sanitize": "^6.0.0"
   },
   "devDependencies": {
@@ -33,7 +36,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "prettier": "^3.3.3",
+    "prettier": "^3.7.4",
     "vite": "^7.2.4"
   }
 }

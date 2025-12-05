@@ -302,16 +302,22 @@ body {
   }
 
   .skeleton-bubble {
+    width: 100% !important;
     max-width: 100%;
     padding: 0.65rem 0.85rem;
   }
 
   .skeleton-message.user .skeleton-bubble {
+    width: 95% !important;
     max-width: 95%;
   }
 
   .skeleton-message.council {
     max-width: 95%;
+  }
+
+  .skeleton-message.council .skeleton-bubble {
+    width: 100% !important;
   }
 
   /* Input Container Mobile */
@@ -385,8 +391,14 @@ body {
   }
 
   .sidebar-settings {
-    padding: 0.65rem 0.85rem;
-    font-size: 0.8rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    margin-top: auto;
+    background: var(--bg-secondary);
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
   }
 
   /* Welcome Screen Mobile */
@@ -2012,6 +2024,8 @@ body {
   transition:
     background-color 0.2s,
     color 0.2s;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .sidebar-settings:hover {
@@ -2437,8 +2451,7 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 0.75rem 1rem;
-  width: 100%;
-  max-width: 750px;
+  width: 750px;
 }
 
 .skeleton-content {

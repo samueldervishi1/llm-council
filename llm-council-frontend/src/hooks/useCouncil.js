@@ -84,7 +84,7 @@ function useCouncil() {
 
   const loadSession = async (id) => {
     const startTime = Date.now()
-    const minLoadingTime = 2000 // Show loader for minimum 15 seconds (FOR TESTING)
+    const minLoadingTime = 1500000 // Show loader for minimum 15 seconds (FOR TESTING)
 
     try {
       setIsLoadingSession(true)
