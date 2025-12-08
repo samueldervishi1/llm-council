@@ -51,6 +51,7 @@ body,
 #root {
   height: 100%;
   width: 100%;
+  background: var(--bg-primary);
 }
 
 body {
@@ -248,9 +249,14 @@ body {
 
   .menu-btn {
     padding: 0.5rem;
-    font-size: 1.1rem;
+    font-size: 1.125rem;
+    line-height: 1;
     margin-right: 0.5rem;
-    min-width: auto;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
@@ -264,12 +270,19 @@ body {
   .top-bar-action {
     padding: 0.5rem;
     gap: 0;
-    min-width: auto;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
   .top-bar-action svg {
     margin: 0;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
   }
 
   .top-bar-action.search-btn .search-hint {
@@ -394,11 +407,7 @@ body {
     padding: 0.75rem 1rem;
     font-size: 0.85rem;
     flex-shrink: 0;
-    margin-top: auto;
     background: var(--bg-secondary);
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
   }
 
   /* Welcome Screen Mobile */
@@ -480,6 +489,8 @@ body {
     padding: 0.4rem;
     margin-right: 0.3rem;
     font-size: 1rem;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .new-chat-btn {
@@ -489,11 +500,13 @@ body {
 
   .top-bar-action {
     padding: 0.4rem;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .top-bar-action svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
   }
 
   /* Chat Messages */
@@ -1303,13 +1316,14 @@ body {
   width: 300px;
   max-width: 85vw;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   z-index: 101;
   display: flex;
   flex-direction: column;
   animation: slideIn 0.2s ease;
-  overflow-y: auto;
+  overflow: hidden; /* Prevent whole sidebar from scrolling */
 }
 
 @keyframes slideIn {
@@ -1327,6 +1341,7 @@ body {
   align-items: center;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .sidebar-header h2 {
@@ -1366,6 +1381,7 @@ body {
   cursor: pointer;
   font-size: 0.95rem;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .sidebar-new-chat:hover {
@@ -1384,6 +1400,7 @@ body {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .sidebar-search svg {
@@ -1428,6 +1445,7 @@ body {
 
 .sidebar-sessions {
   flex: 1;
+  min-height: 0; /* Important: allows flex item to shrink below content size */
   overflow-y: auto;
   padding: 0 0.75rem;
 }

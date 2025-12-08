@@ -13,6 +13,20 @@ MAX_RETRIES = 3
 RETRY_DELAY_BASE = 1.0  # Base delay in seconds (exponential backoff)
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}  # Rate limit + server errors
 
+# Timeout configuration
+CONNECT_TIMEOUT = 10.0      # Max time to establish connection
+READ_TIMEOUT = 120.0        # Max time to receive response (LLMs can be slow)
+WRITE_TIMEOUT = 30.0        # Max time to send request
+POOL_TIMEOUT = 10.0         # Max time to acquire connection from pool
+
+# Create reusable timeout config
+DEFAULT_TIMEOUT = httpx.Timeout(
+    connect=CONNECT_TIMEOUT,
+    read=READ_TIMEOUT,
+    write=WRITE_TIMEOUT,
+    pool=POOL_TIMEOUT
+)
+
 
 class OpenRouterClient:
     def __init__(self):
@@ -90,7 +104,7 @@ class OpenRouterClient:
             "temperature": temperature
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await self._request_with_retry(
                 client,
                 "POST",
@@ -123,7 +137,9 @@ class OpenRouterClient:
 
     async def get_available_models(self) -> list:
         """Get list of available models from OpenRouter with retry logic."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # Use shorter timeout for model list endpoint (doesn't involve LLM generation)
+        models_timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=models_timeout) as client:
             response = await self._request_with_retry(
                 client,
                 "GET",

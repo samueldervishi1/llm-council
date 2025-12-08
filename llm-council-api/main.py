@@ -1,8 +1,11 @@
+import asyncio
 import json
+import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import COUNCIL_MODELS, CHAIRMAN_MODEL, settings
@@ -15,6 +18,7 @@ from schemas import QueryRequest, SessionResponse
 
 # Configure logging
 setup_logging()
+logger = logging.getLogger("llm-council.requests")
 
 
 @asynccontextmanager
@@ -24,17 +28,19 @@ async def lifespan(_app: FastAPI):
     print(f"Council members: {[m['name'] for m in COUNCIL_MODELS]}")
     print(f"Chairman: {CHAIRMAN_MODEL['name']}")
 
-    # Connect to MongoDB
+    # Connect to MongoDB with timeout
     print(f"Connecting to MongoDB at {settings.mongodb_url}...")
     try:
         db = await get_database()
-        # Ping to verify connection
-        await db.command("ping")
+        # Ping to verify connection with 10 second timeout
+        await asyncio.wait_for(db.command("ping"), timeout=10.0)
         print(f"MongoDB connected successfully (database: {settings.mongodb_database})")
 
         # Create indexes for optimal query performance
         await ensure_indexes(db)
         print("MongoDB indexes ensured")
+    except asyncio.TimeoutError:
+        print("MongoDB ping timeout after 10 seconds - proceeding anyway")
     except Exception as e:
         print(f"MongoDB connection failed: {e}")
 
@@ -121,6 +127,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing information."""
+    start_time = time.time()
+
+    # Get client IP (handle proxy headers)
+    forwarded = request.headers.get("X-Forwarded-For")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+
+    # Process request
+    response = await call_next(request)
+
+    # Calculate duration
+    duration_ms = (time.time() - start_time) * 1000
+
+    # Log request details
+    logger.info(
+        f"{request.method} {request.url.path} "
+        f"[{response.status_code}] "
+        f"{duration_ms:.1f}ms "
+        f"client={client_ip}"
+    )
+
+    return response
+
 
 # Include routers
 app.include_router(sessions_router)

@@ -17,7 +17,16 @@ async def get_database() -> AsyncIOMotorDatabase:
     global _client, _database
 
     if _database is None:
-        _client = AsyncIOMotorClient(settings.mongodb_url)
+        _client = AsyncIOMotorClient(
+            settings.mongodb_url,
+            maxPoolSize=20,           # Maximum connections in the pool
+            minPoolSize=5,            # Minimum connections to maintain
+            maxIdleTimeMS=30000,      # Close idle connections after 30 seconds
+            connectTimeoutMS=10000,   # Connection timeout: 10 seconds
+            serverSelectionTimeoutMS=10000,  # Server selection timeout: 10 seconds
+            retryWrites=True,         # Retry failed writes
+            retryReads=True,          # Retry failed reads
+        )
         _database = _client[settings.mongodb_database]
 
     return _database

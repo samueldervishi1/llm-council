@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelProvider(str, Enum):
@@ -32,6 +32,12 @@ class ChatMessage(BaseModel):
     response_time_ms: Optional[int] = Field(None, description="Response time in milliseconds")
 
 
+def _get_valid_model_ids() -> Set[str]:
+    """Get the set of valid model IDs from config. Lazy loaded to avoid circular imports."""
+    from config import COUNCIL_MODELS, CHAIRMAN_MODEL
+    return {m['id'] for m in COUNCIL_MODELS} | {CHAIRMAN_MODEL['id']}
+
+
 class QueryRequest(BaseModel):
     """Request to start a new council session."""
     question: str = Field(
@@ -50,6 +56,24 @@ class QueryRequest(BaseModel):
         max_length=20,
         description="List of model IDs to use. If not provided, all available models are used."
     )
+
+    @field_validator('selected_models')
+    @classmethod
+    def validate_model_ids(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate that all selected model IDs are valid."""
+        if v is None or len(v) == 0:
+            return v
+
+        valid_ids = _get_valid_model_ids()
+        invalid_ids = set(v) - valid_ids
+
+        if invalid_ids:
+            raise ValueError(
+                f"Invalid model ID(s): {', '.join(sorted(invalid_ids))}. "
+                f"Valid models: {', '.join(sorted(valid_ids))}"
+            )
+
+        return v
 
 
 class ContinueRequest(BaseModel):

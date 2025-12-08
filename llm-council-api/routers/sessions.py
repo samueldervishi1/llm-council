@@ -2,7 +2,7 @@ import secrets
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
 
 from core.dependencies import get_session_repository, get_openrouter_client, verify_api_key
 from core.rate_limit import check_rate_limit
@@ -32,7 +32,7 @@ def get_council_service(client=Depends(get_openrouter_client)) -> CouncilService
 
 @router.get("s", response_model=SessionListResponse)
 async def list_sessions(
-        limit: int = 50,
+        limit: int = Query(default=50, ge=1, le=500, description="Maximum number of sessions to return"),
         repo: SessionRepository = Depends(get_session_repository)
 ):
     """
@@ -41,7 +41,7 @@ async def list_sessions(
     Retrieves a list of all council sessions, ordered by most recent first.
     Returns summary information for each session including title, status, and round count.
 
-    - **limit**: Maximum number of sessions to return (default: 50)
+    - **limit**: Maximum number of sessions to return (default: 50, max: 500)
     """
     sessions = await repo.list_all(limit=limit)
     summaries = []
@@ -57,9 +57,9 @@ async def list_sessions(
             is_pinned=s.get("is_pinned", False)
         ))
 
-    # Sort: pinned sessions first, then by created_at (most recent)
-    summaries.sort(key=lambda x: (not x.is_pinned, x.created_at or ""), reverse=True)
-    summaries.sort(key=lambda x: not x.is_pinned)
+    # Sort: pinned sessions first, then by created_at (most recent first within each group)
+    # Using reverse=True on created_at string works because ISO format sorts chronologically
+    summaries.sort(key=lambda x: (x.is_pinned, x.created_at or ""), reverse=True)
 
     return SessionListResponse(sessions=summaries, count=len(summaries))
 
@@ -684,17 +684,19 @@ async def delete_all_sessions(
 async def export_sessions(
         format: str = "json",
         include_deleted: bool = False,
+        limit: int = Query(default=1000, ge=1, le=5000, description="Maximum sessions to export"),
         repo: SessionRepository = Depends(get_session_repository),
         _auth: bool = Depends(verify_api_key)
 ):
     """
     Export All Data
 
-    Exports all chat sessions in the specified format.
+    Exports chat sessions in the specified format.
     Useful for backing up your data or importing into other tools.
 
     - **format**: Export format - "json" or "markdown" (default: "json")
     - **include_deleted**: Include soft-deleted sessions (default: False)
+    - **limit**: Maximum number of sessions to export (default: 1000, max: 5000)
 
     Returns the export data with appropriate Content-Disposition header for download.
     """
@@ -712,8 +714,8 @@ async def export_sessions(
     if format == "md":
         format = "markdown"
 
-    # Get all sessions
-    sessions = await repo.get_all_full(include_deleted=include_deleted)
+    # Get sessions with limit to prevent memory issues
+    sessions = await repo.get_all_full(include_deleted=include_deleted, limit=limit)
 
     # Format based on requested type
     if format == "json":

@@ -44,32 +44,35 @@ class SessionRepository:
         return session
 
     async def list_all(self, limit: int = 50, include_deleted: bool = False) -> List[dict]:
-        """List all sessions with basic info, ordered by most recent."""
-        query = {}
-        if not include_deleted:
-            query["is_deleted"] = {"$ne": True}
+        """List all sessions with basic info, ordered by most recent.
 
-        cursor = self.collection.find(
-            query,
-            {"id": 1, "title": 1, "rounds": 1, "created_at": 1, "is_pinned": 1, "pinned_at": 1, "_id": 0}
-        ).sort("created_at", -1).limit(limit)
+        Uses aggregation to avoid loading full rounds data - only extracts
+        first question, last status, and round count for efficiency.
+        """
+        match_stage = {}
+        if not include_deleted:
+            match_stage["is_deleted"] = {"$ne": True}
+
+        pipeline = [
+            {"$match": match_stage},
+            {"$sort": {"created_at": -1}},
+            {"$limit": limit},
+            {"$project": {
+                "_id": 0,
+                "id": 1,
+                "title": 1,
+                "created_at": 1,
+                "is_pinned": {"$ifNull": ["$is_pinned", False]},
+                # Extract only what we need from rounds array
+                "question": {"$ifNull": [{"$arrayElemAt": ["$rounds.question", 0]}, ""]},
+                "status": {"$ifNull": [{"$arrayElemAt": ["$rounds.status", -1]}, "pending"]},
+                "round_count": {"$size": {"$ifNull": ["$rounds", []]}}
+            }}
+        ]
 
         sessions = []
-        async for doc in cursor:
-            # Extract first question and last round status for summary
-            rounds = doc.get("rounds", [])
-            first_question = rounds[0]["question"] if rounds else ""
-            last_status = rounds[-1]["status"] if rounds else "pending"
-
-            sessions.append({
-                "id": doc["id"],
-                "title": doc.get("title"),
-                "question": first_question,
-                "status": last_status,
-                "round_count": len(rounds),
-                "created_at": doc.get("created_at"),
-                "is_pinned": doc.get("is_pinned", False)
-            })
+        async for doc in self.collection.aggregate(pipeline):
+            sessions.append(doc)
         return sessions
 
     async def soft_delete(self, session_id: str) -> bool:
@@ -143,17 +146,27 @@ class SessionRepository:
         )
         return result.modified_count
 
-    async def get_all_full(self, include_deleted: bool = False) -> List[CouncilSession]:
+    async def get_all_full(
+        self,
+        include_deleted: bool = False,
+        limit: int = 1000,
+        batch_size: int = 100
+    ) -> List[CouncilSession]:
         """
         Get all sessions with full data (for export).
         Returns complete session objects including all rounds and responses.
+
+        Args:
+            include_deleted: Include soft-deleted sessions
+            limit: Maximum number of sessions to return (default 1000, prevents memory issues)
+            batch_size: MongoDB cursor batch size for efficient fetching
         """
         query = {}
         if not include_deleted:
             query["is_deleted"] = {"$ne": True}
 
         sessions = []
-        cursor = self.collection.find(query).sort("created_at", -1)
+        cursor = self.collection.find(query).sort("created_at", -1).limit(limit).batch_size(batch_size)
 
         async for doc in cursor:
             sessions.append(CouncilSession(**doc))
