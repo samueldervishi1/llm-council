@@ -33,9 +33,7 @@ class RateLimiter:
     def _cleanup_old_requests(self, client_id: str, current_time: float) -> None:
         """Remove requests outside the current window."""
         cutoff = current_time - self.window_seconds
-        self.requests[client_id] = [
-            t for t in self.requests[client_id] if t > cutoff
-        ]
+        self.requests[client_id] = [t for t in self.requests[client_id] if t > cutoff]
         # Remove empty client entries to prevent memory leak
         if not self.requests[client_id]:
             del self.requests[client_id]
@@ -48,7 +46,8 @@ class RateLimiter:
         cutoff = current_time - self.window_seconds
         # Create list of keys to avoid modifying dict during iteration
         stale_clients = [
-            client_id for client_id, timestamps in self.requests.items()
+            client_id
+            for client_id, timestamps in self.requests.items()
             if not timestamps or all(t <= cutoff for t in timestamps)
         ]
         for client_id in stale_clients:
@@ -102,7 +101,7 @@ class RateLimiter:
 # Global rate limiter instance
 rate_limiter = RateLimiter(
     requests_per_window=settings.rate_limit_requests,
-    window_seconds=settings.rate_limit_window
+    window_seconds=settings.rate_limit_window,
 )
 
 
@@ -121,5 +120,5 @@ async def check_rate_limit(request: Request) -> None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded. Try again in {retry_after} seconds.",
-            headers={"Retry-After": str(retry_after)}
+            headers={"Retry-After": str(retry_after)},
         )

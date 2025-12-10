@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -34,9 +33,7 @@ class SettingsRepository:
         doc["updated_at"] = datetime.now(timezone.utc)
 
         await self.collection.update_one(
-            {"user_id": settings.user_id},
-            {"$set": doc},
-            upsert=True
+            {"user_id": settings.user_id}, {"$set": doc}, upsert=True
         )
         return settings
 

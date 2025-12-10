@@ -1,4 +1,5 @@
 """Service for exporting session data in various formats."""
+
 import json
 from datetime import datetime
 from typing import List
@@ -16,7 +17,7 @@ def format_as_json(sessions: List[CouncilSession]) -> str:
     export_data = {
         "export_date": datetime.utcnow().isoformat(),
         "session_count": len(sessions),
-        "sessions": sessions_data
+        "sessions": sessions_data,
     }
     return json.dumps(export_data, indent=2, ensure_ascii=False)
 
@@ -34,7 +35,7 @@ def format_as_markdown(sessions: List[CouncilSession]) -> str:
         f"**Total Sessions:** {len(sessions)}",
         "",
         "---",
-        ""
+        "",
     ]
 
     for idx, session in enumerate(sessions, 1):
@@ -64,7 +65,9 @@ def format_as_markdown(sessions: List[CouncilSession]) -> str:
                 lines.append("")
 
                 for msg in round_data.chat_messages:
-                    reply_to = f" *(replying to {msg.reply_to})*" if msg.reply_to else ""
+                    reply_to = (
+                        f" *(replying to {msg.reply_to})*" if msg.reply_to else ""
+                    )
                     lines.append(f"**{msg.model_name}**{reply_to}:")
                     lines.append("")
                     lines.append(msg.content)
@@ -79,7 +82,9 @@ def format_as_markdown(sessions: List[CouncilSession]) -> str:
 
                     for response in round_data.responses:
                         if response.error:
-                            lines.append(f"**{response.model_name}:** ❌ Error - {response.error}")
+                            lines.append(
+                                f"**{response.model_name}:** ❌ Error - {response.error}"
+                            )
                         else:
                             lines.append(f"**{response.model_name}:**")
                             lines.append("")
@@ -98,7 +103,9 @@ def format_as_markdown(sessions: List[CouncilSession]) -> str:
                             model_name = rank.get("model_name", "Unknown")
                             score = rank.get("score", "N/A")
                             reasoning = rank.get("reasoning", "")
-                            lines.append(f"- **{model_name}** (Score: {score}): {reasoning}")
+                            lines.append(
+                                f"- **{model_name}** (Score: {score}): {reasoning}"
+                            )
                         lines.append("")
 
                 # Final synthesis
@@ -116,7 +123,9 @@ def format_as_markdown(sessions: List[CouncilSession]) -> str:
                         if analysis.get("has_disagreement"):
                             model = analysis.get("model_name", "Unknown")
                             score = analysis.get("disagreement_score", 0)
-                            lines.append(f"- **{model}**: Disagreement Score: {score:.2f}")
+                            lines.append(
+                                f"- **{model}**: Disagreement Score: {score:.2f}"
+                            )
                     lines.append("")
 
             lines.append("---")

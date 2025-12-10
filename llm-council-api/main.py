@@ -10,9 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import COUNCIL_MODELS, CHAIRMAN_MODEL, settings
 from core import setup_logging
-from core.dependencies import get_session_repository
+from core.cache import close_redis
+from core.dependencies import get_session_repository, close_openrouter_client
+from core.metrics import init_metrics, track_request
 from db import get_database, close_database, ensure_indexes
 from routers import sessions_router, models_router, shared_router, settings_router
+from routers.health import router as health_router
 from routers.sessions import create_session
 from schemas import QueryRequest, SessionResponse
 
@@ -27,6 +30,10 @@ async def lifespan(_app: FastAPI):
     print("LLM Council API starting...")
     print(f"Council members: {[m['name'] for m in COUNCIL_MODELS]}")
     print(f"Chairman: {CHAIRMAN_MODEL['name']}")
+
+    # Initialize Prometheus metrics
+    init_metrics()
+    print("Metrics initialized")
 
     # Connect to MongoDB with timeout
     print(f"Connecting to MongoDB at {settings.mongodb_url}...")
@@ -44,8 +51,29 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         print(f"MongoDB connection failed: {e}")
 
+    # Initialize Redis connection (optional - will fallback to memory if unavailable)
+    if settings.redis_enabled:
+        from core.cache import get_redis_client
+
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            print(f"Redis connected: {settings.redis_url}")
+        else:
+            print("Redis unavailable - using in-memory cache fallback")
+
     yield
     print("LLM Council API shutting down...")
+
+    # Close HTTP clients gracefully
+    await close_openrouter_client()
+    print("OpenRouter client closed")
+
+    # Close Redis connection
+    if settings.redis_enabled:
+        await close_redis()
+        print("Redis connection closed")
+
+    # Close database connection
     await close_database()
     print("MongoDB connection closed")
 
@@ -118,7 +146,13 @@ app = FastAPI(
 # Default development origins + any production origins from env
 cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 if settings.cors_origins:
-    cors_origins.extend([origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()])
+    cors_origins.extend(
+        [
+            origin.strip()
+            for origin in settings.cors_origins.split(",")
+            if origin.strip()
+        ]
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -129,21 +163,26 @@ app.add_middleware(
 )
 
 
-# Request logging middleware
+# Request logging and metrics middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log all HTTP requests with timing information."""
+async def log_and_track_requests(request: Request, call_next):
+    """Log all HTTP requests with timing and track metrics."""
     start_time = time.time()
 
     # Get client IP (handle proxy headers)
     forwarded = request.headers.get("X-Forwarded-For")
-    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    client_ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else "unknown")
+    )
 
     # Process request
     response = await call_next(request)
 
     # Calculate duration
-    duration_ms = (time.time() - start_time) * 1000
+    duration = time.time() - start_time
+    duration_ms = duration * 1000
 
     # Log request details
     logger.info(
@@ -153,10 +192,19 @@ async def log_requests(request: Request, call_next):
         f"client={client_ip}"
     )
 
+    # Track metrics
+    track_request(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code,
+        duration=duration,
+    )
+
     return response
 
 
 # Include routers
+app.include_router(health_router)  # Health checks and metrics
 app.include_router(sessions_router)
 app.include_router(models_router)
 app.include_router(shared_router)

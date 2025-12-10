@@ -77,8 +77,7 @@ DO NOT be overly formal or give a lecture."""
 
     @staticmethod
     def build_question_with_context(
-            question: str,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        question: str, previous_rounds: Optional[List[ConversationRound]] = None
     ) -> str:
         """Build the question prompt with optional conversation context."""
         if not previous_rounds:
@@ -89,10 +88,10 @@ DO NOT be overly formal or give a lecture."""
 
     @staticmethod
     def build_review_prompt(
-            question: str,
-            valid_responses: List[ModelResponse],
-            reviewer_id: str,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        question: str,
+        valid_responses: List[ModelResponse],
+        reviewer_id: str,
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> str:
         """Build the peer review prompt for a council member."""
         responses_text = ""
@@ -126,10 +125,10 @@ Only output the JSON array, nothing else."""
 
     @staticmethod
     def build_synthesis_prompt(
-            question: str,
-            valid_responses: List[ModelResponse],
-            reviews_text: str,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        question: str,
+        valid_responses: List[ModelResponse],
+        reviews_text: str,
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> str:
         """Build the synthesis prompt for the chairman."""
         responses_text = ""
@@ -159,9 +158,9 @@ Be direct and decisive. Do NOT ask follow-up questions. Give a clear final answe
 
     @staticmethod
     def build_chat_prompt(
-            question: str,
-            chat_messages: List[ChatMessage],
-            previous_rounds: Optional[List[ConversationRound]] = None
+        question: str,
+        chat_messages: List[ChatMessage],
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> str:
         """Build the prompt showing chat history for the next model to respond."""
         parts = []

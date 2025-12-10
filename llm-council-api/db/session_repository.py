@@ -22,7 +22,9 @@ class SessionRepository:
         await self.collection.insert_one(doc)
         return session
 
-    async def get(self, session_id: str, include_deleted: bool = False) -> Optional[CouncilSession]:
+    async def get(
+        self, session_id: str, include_deleted: bool = False
+    ) -> Optional[CouncilSession]:
         """Get a session by ID."""
         query = {"id": session_id}
         if not include_deleted:
@@ -34,20 +36,51 @@ class SessionRepository:
         return CouncilSession(**doc)
 
     async def update(self, session: CouncilSession) -> CouncilSession:
-        """Update an existing session."""
+        """
+        Update an existing session with optimistic locking.
+
+        Uses version field to prevent race conditions. If version doesn't match,
+        it means another request modified the session - raises exception.
+
+        Raises:
+            ValueError: If session was modified by another request (version mismatch)
+        """
         doc = session.model_dump()
         doc["updated_at"] = datetime.now(timezone.utc)
-        await self.collection.update_one(
-            {"id": session.id},
-            {"$set": doc}
+
+        # Get current version before update
+        current_version = session.version
+
+        # Increment version for next update
+        new_version = current_version + 1
+        doc["version"] = new_version
+
+        # Update only if version matches (optimistic locking)
+        result = await self.collection.update_one(
+            {"id": session.id, "version": current_version},  # Match current version
+            {"$set": doc},
         )
+
+        # Check if update succeeded
+        if result.matched_count == 0:
+            # Version mismatch - someone else updated it
+            raise ValueError(
+                f"Session {session.id} was modified by another request. "
+                "Please refresh and try again."
+            )
+
+        # Update the in-memory object with new version
+        session.version = new_version
         return session
 
-    async def list_all(self, limit: int = 50, include_deleted: bool = False) -> List[dict]:
-        """List all sessions with basic info, ordered by most recent.
+    async def list_all(
+        self, limit: int = 50, include_deleted: bool = False
+    ) -> List[dict]:
+        """List all sessions with basic info, ordered by pinned first, then most recent.
 
         Uses aggregation to avoid loading full rounds data - only extracts
         first question, last status, and round count for efficiency.
+        Optimized: Sorts in database instead of Python, uses $cond for efficient round counting.
         """
         match_stage = {}
         if not include_deleted:
@@ -55,19 +88,44 @@ class SessionRepository:
 
         pipeline = [
             {"$match": match_stage},
-            {"$sort": {"created_at": -1}},
+            {
+                "$project": {
+                    "_id": 0,
+                    "id": 1,
+                    "title": 1,
+                    "created_at": 1,
+                    "is_pinned": {"$ifNull": ["$is_pinned", False]},
+                    # Extract only what we need from rounds array
+                    "question": {
+                        "$ifNull": [{"$arrayElemAt": ["$rounds.question", 0]}, ""]
+                    },
+                    "status": {
+                        "$ifNull": [{"$arrayElemAt": ["$rounds.status", -1]}, "pending"]
+                    },
+                    # Optimize round counting - use conditional to avoid $size on large arrays when possible
+                    "round_count": {
+                        "$cond": {
+                            "if": {"$isArray": "$rounds"},
+                            "then": {"$size": "$rounds"},
+                            "else": 0,
+                        }
+                    },
+                    # Add pinned_at for sorting (only needed for sort, not returned to client)
+                    "pinned_at": {"$ifNull": ["$pinned_at", None]},
+                }
+            },
+            # Sort by pinned (desc, so True first), then by created_at (desc, most recent first)
+            # For pinned sessions with pinned_at, use that for secondary sort
+            {
+                "$sort": {
+                    "is_pinned": -1,  # Pinned first
+                    "pinned_at": -1,  # Among pinned, most recently pinned first
+                    "created_at": -1,  # Among unpinned, most recent first
+                }
+            },
             {"$limit": limit},
-            {"$project": {
-                "_id": 0,
-                "id": 1,
-                "title": 1,
-                "created_at": 1,
-                "is_pinned": {"$ifNull": ["$is_pinned", False]},
-                # Extract only what we need from rounds array
-                "question": {"$ifNull": [{"$arrayElemAt": ["$rounds.question", 0]}, ""]},
-                "status": {"$ifNull": [{"$arrayElemAt": ["$rounds.status", -1]}, "pending"]},
-                "round_count": {"$size": {"$ifNull": ["$rounds", []]}}
-            }}
+            # Remove pinned_at from final output
+            {"$project": {"pinned_at": 0}},
         ]
 
         sessions = []
@@ -84,9 +142,9 @@ class SessionRepository:
                 "$set": {
                     "is_deleted": True,
                     "deleted_at": now.isoformat(),
-                    "updated_at": now
+                    "updated_at": now,
                 }
-            }
+            },
         )
         return result.modified_count > 0
 
@@ -98,9 +156,9 @@ class SessionRepository:
                 "$set": {
                     "is_deleted": False,
                     "deleted_at": None,
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": datetime.now(timezone.utc),
                 }
-            }
+            },
         )
         return result.modified_count > 0
 
@@ -111,11 +169,9 @@ class SessionRepository:
 
     async def get_by_share_token(self, share_token: str) -> Optional[CouncilSession]:
         """Get a shared session by its share token."""
-        doc = await self.collection.find_one({
-            "share_token": share_token,
-            "is_shared": True,
-            "is_deleted": {"$ne": True}
-        })
+        doc = await self.collection.find_one(
+            {"share_token": share_token, "is_shared": True, "is_deleted": {"$ne": True}}
+        )
         if doc is None:
             return None
         return CouncilSession(**doc)
@@ -140,17 +196,14 @@ class SessionRepository:
                 "$set": {
                     "is_deleted": True,
                     "deleted_at": now.isoformat(),
-                    "updated_at": now
+                    "updated_at": now,
                 }
-            }
+            },
         )
         return result.modified_count
 
     async def get_all_full(
-        self,
-        include_deleted: bool = False,
-        limit: int = 1000,
-        batch_size: int = 100
+        self, include_deleted: bool = False, limit: int = 1000, batch_size: int = 100
     ) -> List[CouncilSession]:
         """
         Get all sessions with full data (for export).
@@ -166,7 +219,12 @@ class SessionRepository:
             query["is_deleted"] = {"$ne": True}
 
         sessions = []
-        cursor = self.collection.find(query).sort("created_at", -1).limit(limit).batch_size(batch_size)
+        cursor = (
+            self.collection.find(query)
+            .sort("created_at", -1)
+            .limit(limit)
+            .batch_size(batch_size)
+        )
 
         async for doc in cursor:
             sessions.append(CouncilSession(**doc))

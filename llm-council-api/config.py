@@ -23,8 +23,23 @@ class Settings(BaseSettings):
     api_key: str = ""
 
     # Rate limiting
-    rate_limit_requests: int = 100  # requests per minute
+    rate_limit_requests: int = 100  # requests per window
     rate_limit_window: int = 60  # window in seconds
+
+    # Redis - for caching and distributed rate limiting
+    redis_url: str = "redis://localhost:6379/0"
+    redis_enabled: bool = (
+        True  # Set to False to disable Redis (falls back to in-memory)
+    )
+
+    # Caching TTLs (in seconds)
+    cache_ttl_sessions: int = 180  # 3 minutes for session data
+    cache_ttl_models: int = 300  # 5 minutes for model list
+    cache_ttl_settings: int = 60  # 1 minute for user settings
+
+    # Circuit Breaker settings
+    circuit_breaker_fail_max: int = 5  # Open circuit after 5 failures
+    circuit_breaker_timeout: int = 60  # Try again after 60 seconds
 
     class Config:
         env_file = ".env"
@@ -37,28 +52,24 @@ COUNCIL_MODELS = [
     {
         "id": "nvidia/nemotron-nano-9b-v2:free",
         "name": "NVIDIA Nemotron 9B",
-        "provider": "openrouter"
+        "provider": "openrouter",
     },
     {
         "id": "meta-llama/llama-3.2-3b-instruct:free",
         "name": "Llama 3.2 3B",
-        "provider": "openrouter"
+        "provider": "openrouter",
     },
     {
         "id": "microsoft/phi-3-mini-128k-instruct:free",
         "name": "Phi-3 Mini",
-        "provider": "openrouter"
+        "provider": "openrouter",
     },
-    {
-        "id": "openai/gpt-oss-20b:free",
-        "name": "GPT OSS 20B",
-        "provider": "openrouter"
-    },
+    {"id": "openai/gpt-oss-20b:free", "name": "GPT OSS 20B", "provider": "openrouter"},
 ]
 
 # Chairman model - using Qwen which is very stable
 CHAIRMAN_MODEL = {
     "id": "qwen/qwen-2-7b-instruct:free",
     "name": "Qwen 2 7B",
-    "provider": "openrouter"
+    "provider": "openrouter",
 }

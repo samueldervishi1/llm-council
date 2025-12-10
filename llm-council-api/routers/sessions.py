@@ -4,8 +4,15 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 
-from core.dependencies import get_session_repository, get_openrouter_client, verify_api_key
-from core.rate_limit import check_rate_limit
+from core.dependencies import (
+    get_session_repository,
+    get_openrouter_client,
+    verify_api_key,
+)
+from core.distributed_rate_limit import check_distributed_rate_limit
+from core.sanitization import sanitize_title
+from core.cache import Cache
+from config import settings
 from db import SessionRepository
 from schemas import (
     QueryRequest,
@@ -32,8 +39,10 @@ def get_council_service(client=Depends(get_openrouter_client)) -> CouncilService
 
 @router.get("s", response_model=SessionListResponse)
 async def list_sessions(
-        limit: int = Query(default=50, ge=1, le=500, description="Maximum number of sessions to return"),
-        repo: SessionRepository = Depends(get_session_repository)
+    limit: int = Query(
+        default=50, ge=1, le=500, description="Maximum number of sessions to return"
+    ),
+    repo: SessionRepository = Depends(get_session_repository),
 ):
     """
     List All Sessions
@@ -43,33 +52,32 @@ async def list_sessions(
 
     - **limit**: Maximum number of sessions to return (default: 50, max: 500)
     """
+    # Sessions are already sorted in database (pinned first, then by created_at desc)
     sessions = await repo.list_all(limit=limit)
     summaries = []
     for s in sessions:
         created_at = s.get("created_at")
-        summaries.append(SessionSummary(
-            id=s["id"],
-            title=s.get("title"),
-            question=s["question"],
-            status=s["status"],
-            round_count=s.get("round_count", 1),
-            created_at=created_at.isoformat() if created_at else None,
-            is_pinned=s.get("is_pinned", False)
-        ))
-
-    # Sort: pinned sessions first, then by created_at (most recent first within each group)
-    # Using reverse=True on created_at string works because ISO format sorts chronologically
-    summaries.sort(key=lambda x: (x.is_pinned, x.created_at or ""), reverse=True)
+        summaries.append(
+            SessionSummary(
+                id=s["id"],
+                title=s.get("title"),
+                question=s["question"],
+                status=s["status"],
+                round_count=s.get("round_count", 1),
+                created_at=created_at.isoformat() if created_at else None,
+                is_pinned=s.get("is_pinned", False),
+            )
+        )
 
     return SessionListResponse(sessions=summaries, count=len(summaries))
 
 
 @router.post("", response_model=SessionResponse)
 async def create_session(
-        request: QueryRequest,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    request: QueryRequest,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Create New Session
@@ -90,13 +98,14 @@ async def create_session(
         question=request.question,
         mode=request.mode,
         selected_models=request.selected_models,
-        status="pending"
+        status="pending",
     )
 
+    # Sanitize and limit title to prevent XSS and ensure clean data
     session = CouncilSession(
         id=session_id,
-        title=request.question[:100],  # Use first 100 chars as title
-        rounds=[first_round]
+        title=sanitize_title(request.question, max_length=100),
+        rounds=[first_round],
     )
 
     await repo.create(session)
@@ -104,36 +113,46 @@ async def create_session(
     mode_msg = "group chat" if request.mode == CouncilMode.CHAT else "formal council"
     return SessionResponse(
         session=session,
-        message=f"Session created in {mode_msg} mode. Call /session/{{id}}/run-all to start."
+        message=f"Session created in {mode_msg} mode. Call /session/{{id}}/run-all to start.",
     )
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository)
+    session_id: str, repo: SessionRepository = Depends(get_session_repository)
 ):
     """
     Get Session Details
 
     Retrieves the complete state of a session including all rounds,
     responses, peer reviews, and synthesis results.
+
+    Cached for better performance.
     """
+    # Try cache first
+    cache_key = f"session:{session_id}"
+    cached = Cache.get(cache_key)
+    if cached is not None:
+        return SessionResponse(
+            session=CouncilSession(**cached), message="Session retrieved (cached)"
+        )
+
+    # Cache miss - fetch from database
     session = await repo.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return SessionResponse(
-        session=session,
-        message="Session retrieved"
-    )
+    # Cache for 3 minutes
+    Cache.set(cache_key, session.model_dump(), ttl=settings.cache_ttl_sessions)
+
+    return SessionResponse(session=session, message="Session retrieved")
 
 
 @router.delete("/{session_id}")
 async def delete_session(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Delete Session
@@ -144,15 +163,19 @@ async def delete_session(
     deleted = await repo.soft_delete(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Invalidate cache
+    Cache.delete(f"session:{session_id}")
+
     return {"message": "Session deleted"}
 
 
 @router.patch("/{session_id}", response_model=SessionResponse)
 async def update_session(
-        session_id: str,
-        request: SessionUpdateRequest,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    session_id: str,
+    request: SessionUpdateRequest,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Update Session
@@ -164,9 +187,9 @@ async def update_session(
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Update title if provided
+    # Update title if provided (sanitize for security)
     if request.title is not None:
-        session.title = request.title
+        session.title = sanitize_title(request.title, max_length=200)
 
     # Update pinned status if provided
     if request.is_pinned is not None:
@@ -176,21 +199,25 @@ async def update_session(
         else:
             session.pinned_at = None
 
-    await repo.update(session)
+    try:
+        await repo.update(session)
+    except ValueError as e:
+        # Version conflict - session was modified by another request
+        raise HTTPException(status_code=409, detail=str(e))
 
-    return SessionResponse(
-        session=session,
-        message="Session updated"
-    )
+    # Invalidate cache
+    Cache.delete(f"session:{session_id}")
+
+    return SessionResponse(session=session, message="Session updated")
 
 
 @router.post("/{session_id}/continue", response_model=SessionResponse)
 async def continue_session(
-        session_id: str,
-        request: ContinueRequest,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    session_id: str,
+    request: ContinueRequest,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Continue Session
@@ -212,7 +239,7 @@ async def continue_session(
         if last_round.status not in ["synthesized", "chat_complete"]:
             raise HTTPException(
                 status_code=400,
-                detail="Previous round must be completed before continuing"
+                detail="Previous round must be completed before continuing",
             )
 
     # Inherit mode and selected models from the first round (keep session consistent)
@@ -225,7 +252,7 @@ async def continue_session(
         question=request.question,
         mode=session_mode,
         selected_models=session_models,
-        status="pending"
+        status="pending",
     )
     session.rounds.append(new_round)
 
@@ -234,17 +261,17 @@ async def continue_session(
     mode_msg = "group chat" if session_mode == CouncilMode.CHAT else "council responses"
     return SessionResponse(
         session=session,
-        message=f"New round added. Call /session/{{id}}/run-all to get {mode_msg}."
+        message=f"New round added. Call /session/{{id}}/run-all to get {mode_msg}.",
     )
 
 
 @router.post("/{session_id}/responses", response_model=SessionResponse)
 async def get_responses(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    council_service: CouncilService = Depends(get_council_service),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Collect Council Responses
@@ -268,11 +295,12 @@ async def get_responses(
 
     if current_round.status != "pending":
         return SessionResponse(
-            session=session,
-            message="Responses already collected for this round"
+            session=session, message="Responses already collected for this round"
         )
 
-    responses = await council_service.get_council_responses(current_round, previous_rounds)
+    responses = await council_service.get_council_responses(
+        current_round, previous_rounds
+    )
     current_round.responses = responses
     current_round.status = "responses_complete"
 
@@ -280,17 +308,17 @@ async def get_responses(
 
     return SessionResponse(
         session=session,
-        message="All council responses collected. Call /session/{id}/reviews for peer reviews."
+        message="All council responses collected. Call /session/{id}/reviews for peer reviews.",
     )
 
 
 @router.post("/{session_id}/reviews", response_model=SessionResponse)
 async def get_reviews(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    council_service: CouncilService = Depends(get_council_service),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Collect Peer Reviews
@@ -318,8 +346,7 @@ async def get_reviews(
 
     if current_round.status in ["reviews_complete", "synthesized"]:
         return SessionResponse(
-            session=session,
-            message="Reviews already collected for this round"
+            session=session, message="Reviews already collected for this round"
         )
 
     valid_responses = [r for r in current_round.responses if not r.error]
@@ -328,8 +355,7 @@ async def get_reviews(
         current_round.status = "reviews_complete"
         await repo.update(session)
         return SessionResponse(
-            session=session,
-            message="Not enough valid responses for peer review"
+            session=session, message="Not enough valid responses for peer review"
         )
 
     reviews = await council_service.get_peer_reviews(current_round, previous_rounds)
@@ -345,17 +371,17 @@ async def get_reviews(
 
     return SessionResponse(
         session=session,
-        message="Peer reviews complete. Call /session/{id}/synthesize for final answer."
+        message="Peer reviews complete. Call /session/{id}/synthesize for final answer.",
     )
 
 
 @router.post("/{session_id}/synthesize", response_model=SessionResponse)
 async def synthesize(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    council_service: CouncilService = Depends(get_council_service),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Synthesize Final Answer
@@ -381,35 +407,33 @@ async def synthesize(
 
     if current_round.status == "synthesized":
         return SessionResponse(
-            session=session,
-            message="Already synthesized for this round"
+            session=session, message="Already synthesized for this round"
         )
 
     if current_round.status == "pending":
         raise HTTPException(status_code=400, detail="Must collect responses first")
 
     try:
-        final_response = await council_service.synthesize_response(current_round, previous_rounds)
+        final_response = await council_service.synthesize_response(
+            current_round, previous_rounds
+        )
         current_round.final_synthesis = final_response
         current_round.status = "synthesized"
 
         await repo.update(session)
 
-        return SessionResponse(
-            session=session,
-            message="Synthesis complete!"
-        )
+        return SessionResponse(session=session, message="Synthesis complete!")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
 
 
 @router.post("/{session_id}/run-all", response_model=SessionResponse)
 async def run_full_council(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        council_service: CouncilService = Depends(get_council_service),
-        _auth: bool = Depends(verify_api_key),
-        _rate_limit: None = Depends(check_rate_limit)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    council_service: CouncilService = Depends(get_council_service),
+    _auth: bool = Depends(verify_api_key),
+    _rate_limit: None = Depends(check_distributed_rate_limit),
 ):
     """
     Run Full Council Process
@@ -448,18 +472,16 @@ async def run_full_council(
             current_round.status = "chat_complete"
             await repo.update(session)
 
-        return SessionResponse(
-            session=session,
-            message="Group chat complete!"
-        )
+        return SessionResponse(session=session, message="Group chat complete!")
 
-    # Formal mode: traditional 3-step process
+    # Formal mode: traditional 3-step process (optimized to single DB write)
     # Step 1: Get responses
     if current_round.status == "pending":
-        responses = await council_service.get_council_responses(current_round, previous_rounds)
+        responses = await council_service.get_council_responses(
+            current_round, previous_rounds
+        )
         current_round.responses = responses
         current_round.status = "responses_complete"
-        await repo.update(session)
 
     # Step 2: Get peer reviews
     if current_round.status == "responses_complete":
@@ -470,27 +492,36 @@ async def run_full_council(
         current_round.disagreement_analysis = analyze_disagreement(
             current_round.responses, current_round.peer_reviews
         )
-        await repo.update(session)
 
     # Step 3: Synthesize
     if current_round.status == "reviews_complete":
-        final_response = await council_service.synthesize_response(current_round, previous_rounds)
+        final_response = await council_service.synthesize_response(
+            current_round, previous_rounds
+        )
         current_round.final_synthesis = final_response
         current_round.status = "synthesized"
-        await repo.update(session)
 
-    return SessionResponse(
-        session=session,
-        message="Full council process complete!"
-    )
+    # Single database write at the end instead of 3 separate writes (major performance improvement)
+    try:
+        await repo.update(session)
+    except ValueError as e:
+        # Version conflict - session was modified concurrently
+        raise HTTPException(
+            status_code=409, detail=f"Session was modified during processing: {str(e)}"
+        )
+
+    # Invalidate cache since session was updated
+    Cache.delete(f"session:{session_id}")
+
+    return SessionResponse(session=session, message="Full council process complete!")
 
 
 @router.post("/{session_id}/share", response_model=ShareResponse)
 async def share_session(
-        session_id: str,
-        request: Request,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    session_id: str,
+    request: Request,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Share Session
@@ -512,21 +543,21 @@ async def share_session(
         await repo.update(session)
 
     # Build share URL from request
-    base_url = str(request.base_url).rstrip('/')
+    base_url = str(request.base_url).rstrip("/")
     share_url = f"{base_url}/shared/{session.share_token}"
 
     return ShareResponse(
         share_token=session.share_token,
         share_url=share_url,
-        message="Session shared successfully"
+        message="Session shared successfully",
     )
 
 
 @router.delete("/{session_id}/share")
 async def unshare_session(
-        session_id: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    session_id: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Revoke Session Sharing
@@ -550,9 +581,9 @@ async def unshare_session(
 
 @router.get("/{session_id}/share-info")
 async def get_share_info(
-        session_id: str,
-        request: Request,
-        repo: SessionRepository = Depends(get_session_repository)
+    session_id: str,
+    request: Request,
+    repo: SessionRepository = Depends(get_session_repository),
 ):
     """
     Get Share Info
@@ -564,27 +595,23 @@ async def get_share_info(
         raise HTTPException(status_code=404, detail="Session not found")
 
     if not session.is_shared or not session.share_token:
-        return {
-            "is_shared": False,
-            "share_token": None,
-            "share_url": None
-        }
+        return {"is_shared": False, "share_token": None, "share_url": None}
 
-    base_url = str(request.base_url).rstrip('/')
+    base_url = str(request.base_url).rstrip("/")
     return {
         "is_shared": True,
         "share_token": session.share_token,
         "share_url": f"{base_url}/shared/{session.share_token}",
-        "shared_at": session.shared_at
+        "shared_at": session.shared_at,
     }
 
 
 @router.post("/{session_id}/branch", response_model=SessionResponse)
 async def branch_session(
-        session_id: str,
-        request: BranchRequest,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    session_id: str,
+    request: BranchRequest,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Branch Session
@@ -610,28 +637,33 @@ async def branch_session(
     if from_round_index is None:
         # Branch from current state - copy all rounds
         rounds_to_copy = original_session.rounds
-        from_round_index = len(original_session.rounds) - 1 if original_session.rounds else None
+        from_round_index = (
+            len(original_session.rounds) - 1 if original_session.rounds else None
+        )
     else:
         # Validate round index
         if from_round_index < 0 or from_round_index >= len(original_session.rounds):
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid round index. Session has {len(original_session.rounds)} rounds (0-{len(original_session.rounds) - 1})"
+                detail=f"Invalid round index. Session has {len(original_session.rounds)} rounds (0-{len(original_session.rounds) - 1})",
             )
         # Copy rounds up to and including the specified index
-        rounds_to_copy = original_session.rounds[:from_round_index + 1]
+        rounds_to_copy = original_session.rounds[: from_round_index + 1]
 
-    # Create new branched session
+    # Create new branched session (sanitize title for security)
     new_session_id = str(uuid.uuid4())
+    original_title = original_session.title or "Untitled"
+    branched_title = sanitize_title(f"{original_title} (Branch)", max_length=200)
+
     branched_session = CouncilSession(
         id=new_session_id,
-        title=f"{original_session.title or 'Untitled'} (Branch)",
+        title=branched_title,
         rounds=rounds_to_copy,
         parent_session_id=session_id,
         branched_from_round=from_round_index,
         is_deleted=False,
         is_pinned=False,
-        is_shared=False
+        is_shared=False,
     )
 
     # Save branched session
@@ -639,16 +671,16 @@ async def branch_session(
 
     return SessionResponse(
         session=branched_session,
-        message=f"Session branched successfully from round {from_round_index + 1 if from_round_index is not None else 'current state'}"
+        message=f"Session branched successfully from round {from_round_index + 1 if from_round_index is not None else 'current state'}",
     )
 
 
 @router.delete("s/all")
 async def delete_all_sessions(
-        confirm: bool = False,
-        include_pinned: bool = False,
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    confirm: bool = False,
+    include_pinned: bool = False,
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Clear All History
@@ -663,8 +695,7 @@ async def delete_all_sessions(
     """
     if not confirm:
         raise HTTPException(
-            status_code=400,
-            detail="Must set confirm=true to delete all sessions"
+            status_code=400, detail="Must set confirm=true to delete all sessions"
         )
 
     deleted_count = await repo.soft_delete_all(include_pinned=include_pinned)
@@ -674,19 +705,18 @@ async def delete_all_sessions(
     else:
         message = f"{deleted_count} sessions deleted (pinned sessions preserved)"
 
-    return {
-        "message": message,
-        "deleted_count": deleted_count
-    }
+    return {"message": message, "deleted_count": deleted_count}
 
 
 @router.get("s/export")
 async def export_sessions(
-        format: str = "json",
-        include_deleted: bool = False,
-        limit: int = Query(default=1000, ge=1, le=5000, description="Maximum sessions to export"),
-        repo: SessionRepository = Depends(get_session_repository),
-        _auth: bool = Depends(verify_api_key)
+    format: str = "json",
+    include_deleted: bool = False,
+    limit: int = Query(
+        default=1000, ge=1, le=5000, description="Maximum sessions to export"
+    ),
+    repo: SessionRepository = Depends(get_session_repository),
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Export All Data
@@ -706,8 +736,7 @@ async def export_sessions(
     # Validate format
     if format not in ["json", "markdown", "md"]:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid format. Must be 'json' or 'markdown'"
+            status_code=400, detail="Invalid format. Must be 'json' or 'markdown'"
         )
 
     # Normalize format
@@ -730,7 +759,5 @@ async def export_sessions(
     return Response(
         content=content,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

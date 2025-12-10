@@ -12,8 +12,7 @@ from .prompts import Prompts
 
 
 def analyze_disagreement(
-        responses: List[ModelResponse],
-        peer_reviews: List[PeerReview]
+    responses: List[ModelResponse], peer_reviews: List[PeerReview]
 ) -> List[Dict]:
     """
     Analyze disagreement among council members based on peer reviews.
@@ -44,7 +43,11 @@ def analyze_disagreement(
 
     for review in peer_reviews:
         for ranking in review.rankings:
-            if isinstance(ranking, dict) and "response_num" in ranking and "rank" in ranking:
+            if (
+                isinstance(ranking, dict)
+                and "response_num" in ranking
+                and "rank" in ranking
+            ):
                 resp_num = ranking.get("response_num")
                 rank = ranking.get("rank")
                 if resp_num in ranks_by_response and isinstance(rank, (int, float)):
@@ -59,14 +62,16 @@ def analyze_disagreement(
 
         if len(ranks) < 2:
             # Not enough data to calculate disagreement
-            analysis.append({
-                "model_id": model_info.get("model_id", ""),
-                "model_name": model_info.get("model_name", ""),
-                "ranks_received": ranks,
-                "mean_rank": ranks[0] if ranks else 0,
-                "disagreement_score": 0.0,
-                "has_disagreement": False
-            })
+            analysis.append(
+                {
+                    "model_id": model_info.get("model_id", ""),
+                    "model_name": model_info.get("model_name", ""),
+                    "ranks_received": ranks,
+                    "mean_rank": ranks[0] if ranks else 0,
+                    "disagreement_score": 0.0,
+                    "has_disagreement": False,
+                }
+            )
             continue
 
         avg_rank = mean(ranks)
@@ -86,14 +91,16 @@ def analyze_disagreement(
         rank_range = max(ranks) - min(ranks) if ranks else 0
         has_disagreement = disagreement_score > 0.5 or rank_range >= num_responses / 2
 
-        analysis.append({
-            "model_id": model_info.get("model_id", ""),
-            "model_name": model_info.get("model_name", ""),
-            "ranks_received": ranks,
-            "mean_rank": round(avg_rank, 2),
-            "disagreement_score": round(disagreement_score, 2),
-            "has_disagreement": has_disagreement
-        })
+        analysis.append(
+            {
+                "model_id": model_info.get("model_id", ""),
+                "model_name": model_info.get("model_name", ""),
+                "ranks_received": ranks,
+                "mean_rank": round(avg_rank, 2),
+                "disagreement_score": round(disagreement_score, 2),
+                "has_disagreement": has_disagreement,
+            }
+        )
 
     return analysis
 
@@ -104,7 +111,11 @@ class CouncilService:
     def __init__(self, client: OpenRouterClient):
         self.client = client
 
-    def _get_active_models(self, selected_models: Optional[List[str]] = None, include_chairman: bool = False) -> List[dict]:
+    def _get_active_models(
+        self,
+        selected_models: Optional[List[str]] = None,
+        include_chairman: bool = False,
+    ) -> List[dict]:
         """
         Get the models to use based on selection.
 
@@ -128,29 +139,27 @@ class CouncilService:
         return [m for m in all_models if m["id"] in selected_models]
 
     async def get_council_responses(
-            self,
-            current_round: ConversationRound,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        self,
+        current_round: ConversationRound,
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> List[ModelResponse]:
         """Query all council models in parallel."""
         has_context = previous_rounds and len(previous_rounds) > 0
         system_prompt = (
-            Prompts.COUNCIL_MEMBER_SYSTEM_WITH_CONTEXT if has_context
+            Prompts.COUNCIL_MEMBER_SYSTEM_WITH_CONTEXT
+            if has_context
             else Prompts.COUNCIL_MEMBER_SYSTEM
         )
 
         prompt = Prompts.build_question_with_context(
-            question=current_round.question,
-            previous_rounds=previous_rounds
+            question=current_round.question, previous_rounds=previous_rounds
         )
 
         async def query_model(model: dict) -> ModelResponse:
             try:
                 start_time = time.monotonic()
                 response = await self.client.chat(
-                    model_id=model["id"],
-                    prompt=prompt,
-                    system_prompt=system_prompt
+                    model_id=model["id"], prompt=prompt, system_prompt=system_prompt
                 )
                 elapsed_ms = int((time.monotonic() - start_time) * 1000)
                 return ModelResponse(
@@ -158,7 +167,7 @@ class CouncilService:
                     model_name=model["name"],
                     response=response,
                     error=None,
-                    response_time_ms=elapsed_ms
+                    response_time_ms=elapsed_ms,
                 )
             except Exception as e:
                 return ModelResponse(
@@ -166,19 +175,21 @@ class CouncilService:
                     model_name=model["name"],
                     response="",
                     error=str(e),
-                    response_time_ms=None
+                    response_time_ms=None,
                 )
 
         # Use selected models or all council models (exclude chairman in formal mode)
-        active_models = self._get_active_models(current_round.selected_models, include_chairman=False)
+        active_models = self._get_active_models(
+            current_round.selected_models, include_chairman=False
+        )
         tasks = [query_model(model) for model in active_models]
         responses = await asyncio.gather(*tasks)
         return list(responses)
 
     async def get_peer_reviews(
-            self,
-            current_round: ConversationRound,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        self,
+        current_round: ConversationRound,
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> List[PeerReview]:
         """Have each council member review and rank the others' responses."""
         valid_responses = [r for r in current_round.responses if not r.error]
@@ -192,19 +203,17 @@ class CouncilService:
                     question=current_round.question,
                     valid_responses=valid_responses,
                     reviewer_id=model["id"],
-                    previous_rounds=previous_rounds
+                    previous_rounds=previous_rounds,
                 )
 
                 response = await self.client.chat(
-                    model_id=model["id"],
-                    prompt=prompt,
-                    temperature=0.3
+                    model_id=model["id"], prompt=prompt, temperature=0.3
                 )
 
                 # Try to parse JSON from response
                 try:
-                    start = response.find('[')
-                    end = response.rfind(']') + 1
+                    start = response.find("[")
+                    end = response.rfind("]") + 1
                     if start != -1 and end > start:
                         rankings = json.loads(response[start:end])
                     else:
@@ -212,26 +221,24 @@ class CouncilService:
                 except json.JSONDecodeError:
                     rankings = [{"raw_response": response}]
 
-                return PeerReview(
-                    reviewer_model=model["name"],
-                    rankings=rankings
-                )
+                return PeerReview(reviewer_model=model["name"], rankings=rankings)
             except Exception as e:
                 return PeerReview(
-                    reviewer_model=model["name"],
-                    rankings=[{"error": str(e)}]
+                    reviewer_model=model["name"], rankings=[{"error": str(e)}]
                 )
 
         # Use selected models or all council models for reviews (exclude chairman)
-        active_models = self._get_active_models(current_round.selected_models, include_chairman=False)
+        active_models = self._get_active_models(
+            current_round.selected_models, include_chairman=False
+        )
         tasks = [get_review(model) for model in active_models]
         reviews = await asyncio.gather(*tasks)
         return list(reviews)
 
     async def synthesize_response(
-            self,
-            current_round: ConversationRound,
-            previous_rounds: Optional[List[ConversationRound]] = None
+        self,
+        current_round: ConversationRound,
+        previous_rounds: Optional[List[ConversationRound]] = None,
     ) -> str:
         """Have the chairman synthesize a final response."""
         valid_responses = [r for r in current_round.responses if not r.error]
@@ -244,7 +251,7 @@ class CouncilService:
             question=current_round.question,
             valid_responses=valid_responses,
             reviews_text=reviews_text,
-            previous_rounds=previous_rounds
+            previous_rounds=previous_rounds,
         )
 
         logger.info(f"Starting synthesis with {CHAIRMAN_MODEL['name']}")
@@ -254,17 +261,17 @@ class CouncilService:
             model_id=CHAIRMAN_MODEL["id"],
             prompt=synthesis_prompt,
             system_prompt=Prompts.CHAIRMAN_SYSTEM,
-            max_tokens=4096
+            max_tokens=4096,
         )
 
         logger.info(f"Synthesis complete, response length: {len(final_response)} chars")
         return final_response
 
     async def run_group_chat(
-            self,
-            current_round: ConversationRound,
-            previous_rounds: Optional[List[ConversationRound]] = None,
-            num_turns: int = 1  # Default to 1 turn so user can participate
+        self,
+        current_round: ConversationRound,
+        previous_rounds: Optional[List[ConversationRound]] = None,
+        num_turns: int = 1,  # Default to 1 turn so user can participate
     ) -> List[ChatMessage]:
         """
         Run a group chat style discussion where models respond sequentially
@@ -282,27 +289,37 @@ class CouncilService:
 
         # Use selected models or all models (council + chairman) in chat mode
         # In chat mode, chairman participates as a regular member
-        all_chat_models = self._get_active_models(current_round.selected_models, include_chairman=True)
+        all_chat_models = self._get_active_models(
+            current_round.selected_models, include_chairman=True
+        )
 
-        logger.info(f"Starting group chat with {len(all_chat_models)} models, {num_turns} turns each")
+        logger.info(
+            f"Starting group chat with {len(all_chat_models)} models, {num_turns} turns each"
+        )
 
         for turn in range(num_turns):
             logger.info(f"=== Turn {turn + 1}/{num_turns} ===")
 
             for model in all_chat_models:
-                other_models = [m["name"] for m in all_chat_models if m["id"] != model["id"]]
+                other_models = [
+                    m["name"] for m in all_chat_models if m["id"] != model["id"]
+                ]
 
                 # Build system prompt
                 if not chat_messages:
-                    system_prompt = Prompts.get_chat_first_responder_prompt(model["name"])
+                    system_prompt = Prompts.get_chat_first_responder_prompt(
+                        model["name"]
+                    )
                 else:
-                    system_prompt = Prompts.get_chat_system_prompt(model["name"], other_models)
+                    system_prompt = Prompts.get_chat_system_prompt(
+                        model["name"], other_models
+                    )
 
                 # Build user prompt with chat history
                 user_prompt = Prompts.build_chat_prompt(
                     question=current_round.question,
                     chat_messages=chat_messages,
-                    previous_rounds=previous_rounds
+                    previous_rounds=previous_rounds,
                 )
 
                 try:
@@ -312,7 +329,7 @@ class CouncilService:
                         model_id=model["id"],
                         prompt=user_prompt,
                         system_prompt=system_prompt,
-                        temperature=0.8  # Slightly higher for more personality
+                        temperature=0.8,  # Slightly higher for more personality
                     )
                     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -328,7 +345,7 @@ class CouncilService:
                         model_name=model["name"],
                         content=response,
                         reply_to=reply_to,
-                        response_time_ms=elapsed_ms
+                        response_time_ms=elapsed_ms,
                     )
                     chat_messages.append(message)
                     logger.info(f"{model['name']}: {response[:100]}...")
@@ -340,7 +357,7 @@ class CouncilService:
                         model_name=model["name"],
                         content=f"[Failed to respond: {str(e)}]",
                         reply_to=None,
-                        response_time_ms=None
+                        response_time_ms=None,
                     )
                     chat_messages.append(message)
 

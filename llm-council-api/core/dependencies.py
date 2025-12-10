@@ -39,9 +39,17 @@ def get_openrouter_client() -> OpenRouterClient:
     return _openrouter_client
 
 
+async def close_openrouter_client() -> None:
+    """Close the OpenRouter client and cleanup resources."""
+    global _openrouter_client
+    if _openrouter_client is not None:
+        await _openrouter_client.close()
+        _openrouter_client = None
+
+
 async def verify_api_key(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-    api_key: Optional[str] = Query(None, alias="api_key")
+    api_key: Optional[str] = Query(None, alias="api_key"),
 ) -> bool:
     """
     Verify API key for protected endpoints.
@@ -63,14 +71,13 @@ async def verify_api_key(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API key required. Provide X-API-Key header or api_key query parameter.",
-            headers={"WWW-Authenticate": "ApiKey"}
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
     # Use constant-time comparison to prevent timing attacks
     if not secrets.compare_digest(provided_key, settings.api_key):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid API key"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key"
         )
 
     return True

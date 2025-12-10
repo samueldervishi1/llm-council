@@ -26,6 +26,7 @@ class BetaFeature(str, Enum):
 
 class BetaFeatureInfo(BaseModel):
     """Information about a beta feature."""
+
     id: str
     name: str
     description: str
@@ -38,13 +39,13 @@ BETA_FEATURES_INFO: List[BetaFeatureInfo] = [
         id=BetaFeature.BRANCHING,
         name="Conversation Branching",
         description="Fork the conversation at any round to explore different paths",
-        status="available"  # Changed to available for testing
+        status="available",  # Changed to available for testing
     ),
     BetaFeatureInfo(
         id=BetaFeature.CUSTOM_PROMPTS,
         name="Custom System Prompts",
         description="Define custom personality and behavior for each model",
-        status="coming_soon"
+        status="coming_soon",
     ),
 ]
 

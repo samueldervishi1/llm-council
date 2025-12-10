@@ -19,13 +19,13 @@ async def get_database() -> AsyncIOMotorDatabase:
     if _database is None:
         _client = AsyncIOMotorClient(
             settings.mongodb_url,
-            maxPoolSize=20,           # Maximum connections in the pool
-            minPoolSize=5,            # Minimum connections to maintain
-            maxIdleTimeMS=30000,      # Close idle connections after 30 seconds
-            connectTimeoutMS=10000,   # Connection timeout: 10 seconds
+            maxPoolSize=20,  # Maximum connections in the pool
+            minPoolSize=5,  # Minimum connections to maintain
+            maxIdleTimeMS=30000,  # Close idle connections after 30 seconds
+            connectTimeoutMS=10000,  # Connection timeout: 10 seconds
             serverSelectionTimeoutMS=10000,  # Server selection timeout: 10 seconds
-            retryWrites=True,         # Retry failed writes
-            retryReads=True,          # Retry failed reads
+            retryWrites=True,  # Retry failed writes
+            retryReads=True,  # Retry failed reads
         )
         _database = _client[settings.mongodb_database]
 
@@ -46,37 +46,33 @@ async def ensure_indexes(database: AsyncIOMotorDatabase) -> None:
         # Sessions indexes
         # Index for session lookup by ID (most common query)
         await sessions_collection.create_index(
-            [("id", ASCENDING)],
-            unique=True,
-            name="idx_session_id"
+            [("id", ASCENDING)], unique=True, name="idx_session_id"
         )
 
         # Index for shared session lookup by token
         await sessions_collection.create_index(
             [("share_token", ASCENDING)],
             sparse=True,  # Only index documents with share_token
-            name="idx_share_token"
+            name="idx_share_token",
         )
 
         # Compound index for listing sessions (filtered by is_deleted, sorted by created_at)
         await sessions_collection.create_index(
             [("is_deleted", ASCENDING), ("created_at", DESCENDING)],
-            name="idx_list_sessions"
+            name="idx_list_sessions",
         )
 
         # Index for pinned sessions
         await sessions_collection.create_index(
             [("is_pinned", ASCENDING), ("pinned_at", DESCENDING)],
             sparse=True,
-            name="idx_pinned_sessions"
+            name="idx_pinned_sessions",
         )
 
         # User settings indexes
         # Index for user_id lookup
         await settings_collection.create_index(
-            [("user_id", ASCENDING)],
-            unique=True,
-            name="idx_user_id"
+            [("user_id", ASCENDING)], unique=True, name="idx_user_id"
         )
 
         _indexes_created = True

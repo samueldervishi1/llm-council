@@ -10,9 +10,9 @@ router = APIRouter(prefix="/shared", tags=["shared"])
 
 @router.get("/{share_token}", response_model=SessionResponse)
 async def get_shared_session(
-        share_token: str,
-        repo: SessionRepository = Depends(get_session_repository),
-        _rate_limit: None = Depends(check_rate_limit)
+    share_token: str,
+    repo: SessionRepository = Depends(get_session_repository),
+    _rate_limit: None = Depends(check_rate_limit),
 ):
     """
     Get Shared Session (Public)
@@ -26,10 +26,7 @@ async def get_shared_session(
     if session is None:
         raise HTTPException(
             status_code=404,
-            detail="Shared session not found or sharing has been revoked"
+            detail="Shared session not found or sharing has been revoked",
         )
 
-    return SessionResponse(
-        session=session,
-        message="Shared session retrieved"
-    )
+    return SessionResponse(session=session, message="Shared session retrieved")

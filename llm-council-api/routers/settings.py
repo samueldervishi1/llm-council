@@ -1,18 +1,16 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from core.dependencies import get_settings_repository, verify_api_key
 from db import SettingsRepository
-from schemas import UserSettings, UserSettingsUpdate, UserSettingsResponse
+from schemas import UserSettingsUpdate, UserSettingsResponse
 from constants.beta_features import get_beta_features_info, BetaFeatureInfo
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("", response_model=UserSettingsResponse)
-async def get_settings(
-    repo: SettingsRepository = Depends(get_settings_repository)
-):
+async def get_settings(repo: SettingsRepository = Depends(get_settings_repository)):
     """
     Get User Settings
 
@@ -20,17 +18,14 @@ async def get_settings(
     Returns default settings if none have been configured.
     """
     settings = await repo.get(user_id="default")
-    return UserSettingsResponse(
-        settings=settings,
-        message="Settings retrieved"
-    )
+    return UserSettingsResponse(settings=settings, message="Settings retrieved")
 
 
 @router.patch("", response_model=UserSettingsResponse)
 async def update_settings(
     request: UserSettingsUpdate,
     repo: SettingsRepository = Depends(get_settings_repository),
-    _auth: bool = Depends(verify_api_key)
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Update User Settings
@@ -54,15 +49,14 @@ async def update_settings(
     updated_settings = await repo.update(current_settings)
 
     return UserSettingsResponse(
-        settings=updated_settings,
-        message="Settings updated successfully"
+        settings=updated_settings, message="Settings updated successfully"
     )
 
 
 @router.delete("")
 async def reset_settings(
     repo: SettingsRepository = Depends(get_settings_repository),
-    _auth: bool = Depends(verify_api_key)
+    _auth: bool = Depends(verify_api_key),
 ):
     """
     Reset Settings to Defaults

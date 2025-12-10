@@ -8,6 +8,7 @@ import {
   ChatSkeleton,
   Sidebar,
   CommandPalette,
+  IncognitoChat,
 } from './components'
 import useCouncil from './hooks/useCouncil'
 import useTheme from './hooks/useTheme'
@@ -51,6 +52,7 @@ function App() {
   const { theme, toggleTheme } = useTheme()
   const [userSettings, setUserSettings] = useState({ enabled_beta_features: [] })
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' })
+  const [isIncognitoOpen, setIsIncognitoOpen] = useState(false)
 
   // Load user settings on mount
   useEffect(() => {
@@ -154,6 +156,11 @@ function App() {
         e.preventDefault()
         toggleSidebar()
       }
+      // Alt+I for incognito mode
+      if (e.altKey && e.key === 'i') {
+        e.preventDefault()
+        setIsIncognitoOpen(true)
+      }
     }
     // Use capture phase to ensure we get the event before browser
     window.addEventListener('keydown', handleKeyDown, { capture: true })
@@ -198,6 +205,7 @@ function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onOpenIncognito={() => setIsIncognitoOpen(true)}
       />
 
       {isLoadingSession ? (
@@ -268,6 +276,13 @@ function App() {
           </div>
         </div>
       )}
+
+      <IncognitoChat
+        isOpen={isIncognitoOpen}
+        onClose={() => setIsIncognitoOpen(false)}
+        availableModels={availableModels}
+        selectedModels={selectedModels}
+      />
     </div>
   )
 }

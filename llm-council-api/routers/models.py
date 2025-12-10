@@ -24,13 +24,13 @@ async def get_models():
     ]
     # Include chairman as a selectable model too
     models.append(
-        AvailableModel(id=CHAIRMAN_MODEL["id"], name=CHAIRMAN_MODEL["name"], is_chairman=True)
+        AvailableModel(
+            id=CHAIRMAN_MODEL["id"], name=CHAIRMAN_MODEL["name"], is_chairman=True
+        )
     )
 
     chairman = AvailableModel(
-        id=CHAIRMAN_MODEL["id"],
-        name=CHAIRMAN_MODEL["name"],
-        is_chairman=True
+        id=CHAIRMAN_MODEL["id"], name=CHAIRMAN_MODEL["name"], is_chairman=True
     )
 
     return AvailableModelsResponse(models=models, chairman=chairman)
