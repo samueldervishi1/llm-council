@@ -129,6 +129,62 @@ body {
   justify-content: flex-end;
 }
 
+/* Status Indicator */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.status-indicator:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.status-indicator.healthy .status-dot {
+  background: #2fcc66;
+  box-shadow: 0 0 6px rgba(47, 204, 102, 0.5);
+}
+
+.status-indicator.unhealthy .status-dot {
+  background: #ff6b6b;
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.5);
+}
+
+.status-indicator.checking .status-dot {
+  background: #ffd93d;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-text {
+  font-weight: 500;
+}
+
 .new-chat-btn {
   padding: 0.5rem 1rem;
   background: transparent;

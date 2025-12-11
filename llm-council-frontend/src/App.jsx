@@ -54,7 +54,7 @@ function App() {
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' })
   const [isIncognitoOpen, setIsIncognitoOpen] = useState(false)
 
-  // Load user settings on mount
+  // Load user settings on mount and trigger auto-delete cleanup
   useEffect(() => {
     const loadUserSettings = async () => {
       try {
@@ -64,7 +64,19 @@ function App() {
         console.error('Failed to load user settings:', error)
       }
     }
+
+    const runAutoDeleteCleanup = async () => {
+      try {
+        // Trigger cleanup silently - the backend checks if feature is enabled
+        await apiClient.post('/sessions/cleanup')
+      } catch (error) {
+        // Silently ignore cleanup errors - not critical for user experience
+        console.debug('Auto-delete cleanup:', error.response?.data?.message || 'skipped')
+      }
+    }
+
     loadUserSettings()
+    runAutoDeleteCleanup()
   }, [])
 
   // Handle new chat navigation

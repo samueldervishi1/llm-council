@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { FRONTEND_URL } from '../config/api'
+import { useState, useEffect } from 'react'
+import { FRONTEND_URL, apiClient } from '../config/api'
 
 function TopBar({
   onNewChat,
@@ -16,6 +16,23 @@ function TopBar({
 }) {
   const [shareModal, setShareModal] = useState({ open: false, url: '', loading: false })
   const [showToast, setShowToast] = useState(false)
+  const [apiStatus, setApiStatus] = useState('checking') // 'healthy', 'unhealthy', 'checking'
+
+  // Check API health status periodically
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        await apiClient.get('/health')
+        setApiStatus('healthy')
+      } catch {
+        setApiStatus('unhealthy')
+      }
+    }
+
+    checkHealth()
+    const interval = setInterval(checkHealth, 30000) // Check every 30 seconds
+    return () => clearInterval(interval)
+  }, [])
 
   const handleShare = async () => {
     if (!sessionId || !onShare) return
@@ -52,6 +69,29 @@ function TopBar({
         </div>
 
         <div className="top-bar-right">
+          <a
+            href="http://localhost:3001/status/llm-council"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`status-indicator ${apiStatus}`}
+            title={
+              apiStatus === 'healthy'
+                ? 'All systems operational'
+                : apiStatus === 'unhealthy'
+                  ? 'System issues detected'
+                  : 'Checking status...'
+            }
+          >
+            <span className="status-dot"></span>
+            <span className="status-text">
+              {apiStatus === 'healthy'
+                ? 'Operational'
+                : apiStatus === 'unhealthy'
+                  ? 'Issues'
+                  : 'Checking'}
+            </span>
+          </a>
+
           <button
             className="top-bar-action incognito-btn"
             onClick={onOpenIncognito}

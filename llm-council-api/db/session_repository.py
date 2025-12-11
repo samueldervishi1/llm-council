@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -230,3 +230,38 @@ class SessionRepository:
             sessions.append(CouncilSession(**doc))
 
         return sessions
+
+    async def soft_delete_older_than(
+        self, days: int, include_pinned: bool = False
+    ) -> int:
+        """
+        Soft delete sessions older than the specified number of days.
+        Returns the count of deleted sessions.
+
+        Args:
+            days: Number of days. Sessions created before (now - days) will be deleted.
+            include_pinned: If True, also delete pinned sessions. Default False (preserve pinned).
+        """
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        now = datetime.now(timezone.utc)
+
+        query = {
+            "is_deleted": {"$ne": True},
+            "created_at": {"$lt": cutoff_date},
+        }
+
+        if not include_pinned:
+            query["is_pinned"] = {"$ne": True}
+
+        result = await self.collection.update_many(
+            query,
+            {
+                "$set": {
+                    "is_deleted": True,
+                    "deleted_at": now.isoformat(),
+                    "updated_at": now,
+                    "auto_deleted": True,  # Mark as auto-deleted for tracking
+                }
+            },
+        )
+        return result.modified_count

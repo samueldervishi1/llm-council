@@ -155,6 +155,19 @@
   letter-spacing: 0.5px;
 }
 
+/* Beta Required Badge */
+.beta-required-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  background: linear-gradient(135deg, #748ffc 0%, #5c7cfa 100%);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* No Beta Features Message */
 .no-beta-features {
   padding: 1.25rem;

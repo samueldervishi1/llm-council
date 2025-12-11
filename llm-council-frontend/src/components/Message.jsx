@@ -1,15 +1,13 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 
 // Color palette for different models
 const MODEL_COLORS = {
   'NVIDIA Nemotron 9B': '#76b900',
-  'NVIDIA: Nemotron Nano 12B 2 VL': '#76b900',
-  'Gemma 3 27B': '#4285f4',
+  'Llama 3.2 3B': '#0467df',
+  'Mistral Devstral 2 2512': '#ff7000',
   'GPT OSS 20B': '#10a37f',
-  'Grok 4.1 Fast': '#a78bfa',
-  'Grok 4.1 Fast (Chairman)': '#a78bfa',
 }
 
 function getModelColor(modelName) {
@@ -154,4 +152,5 @@ function Message({ type, content, modelName, disagreement, replyTo, responseTime
   )
 }
 
-export default Message
+// Memoize to prevent re-renders when parent updates
+export default memo(Message)

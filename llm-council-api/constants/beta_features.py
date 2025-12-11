@@ -19,6 +19,9 @@ class BetaFeature(str, Enum):
     CUSTOM_PROMPTS = "custom_prompts"
     """Custom System Prompts - Define personality for each model"""
 
+    AUTO_DELETE = "auto_delete"
+    """Auto-Delete - Automatically delete old sessions after a period"""
+
     # Add new beta features here as they're developed
     # DEBATE_MODE = "debate_mode"
     # MULTI_LANGUAGE = "multi_language"
@@ -46,6 +49,12 @@ BETA_FEATURES_INFO: List[BetaFeatureInfo] = [
         name="Custom System Prompts",
         description="Define custom personality and behavior for each model",
         status="coming_soon",
+    ),
+    BetaFeatureInfo(
+        id=BetaFeature.AUTO_DELETE,
+        name="Auto-Delete Old Chats",
+        description="Automatically delete chat sessions after 30, 60, or 90 days",
+        status="available",
     ),
 ]
 

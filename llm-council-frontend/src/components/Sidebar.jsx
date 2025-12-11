@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   Pin,
@@ -566,4 +566,4 @@ function Sidebar({
   )
 }
 
-export default Sidebar
+export default memo(Sidebar)

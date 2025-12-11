@@ -41,14 +41,34 @@ function useCouncil() {
   const fetchModels = useCallback(async () => {
     try {
       const res = await apiClient.get('/models')
-      setAvailableModels(res.data.models)
+      const models = res.data.models
+      setAvailableModels(models)
 
-      // If no models selected yet, select all by default
+      const validModelIds = models.map((m) => m.id)
       const savedModels = localStorage.getItem('llm-council-selected-models')
-      if (!savedModels) {
-        const allModelIds = res.data.models.map((m) => m.id)
-        setSelectedModels(allModelIds)
-        localStorage.setItem('llm-council-selected-models', JSON.stringify(allModelIds))
+
+      if (savedModels) {
+        // Filter out any invalid/old model IDs from cache
+        const parsed = JSON.parse(savedModels)
+        const validSavedModels = parsed.filter((id) => validModelIds.includes(id))
+
+        if (validSavedModels.length !== parsed.length) {
+          // Some models were invalid, update localStorage
+          console.log('Removed invalid cached model IDs')
+          localStorage.setItem('llm-council-selected-models', JSON.stringify(validSavedModels))
+        }
+
+        // If all cached models were invalid, select all available
+        if (validSavedModels.length === 0) {
+          setSelectedModels(validModelIds)
+          localStorage.setItem('llm-council-selected-models', JSON.stringify(validModelIds))
+        } else {
+          setSelectedModels(validSavedModels)
+        }
+      } else {
+        // No saved models, select all by default
+        setSelectedModels(validModelIds)
+        localStorage.setItem('llm-council-selected-models', JSON.stringify(validModelIds))
       }
     } catch (error) {
       console.error('Error fetching models:', error)

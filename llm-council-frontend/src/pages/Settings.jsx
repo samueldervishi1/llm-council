@@ -341,27 +341,47 @@ function Settings({
           <div className="settings-section">
             <h2>Data & Privacy</h2>
 
-            <div className="settings-option disabled">
-              <div className="settings-option-info">
-                <h3>
-                  Auto-delete Old Chats
-                  <span className="coming-soon-badge">Coming Soon</span>
-                </h3>
-                <p>Automatically delete chat sessions after a certain period</p>
-              </div>
-              <div className="settings-option-control">
-                <select
-                  value={settings.auto_delete_days || 'never'}
-                  className="settings-select"
-                  disabled
-                >
-                  <option value="never">Never</option>
-                  <option value="30">30 days</option>
-                  <option value="60">60 days</option>
-                  <option value="90">90 days</option>
-                </select>
-              </div>
-            </div>
+            {(() => {
+              const autoDeleteFeature = availableBetaFeatures.find((f) => f.id === 'auto_delete')
+              const isAutoDeleteEnabled = settings.enabled_beta_features?.includes('auto_delete')
+              const isAutoDeleteAvailable = autoDeleteFeature?.status === 'available'
+
+              return (
+                <div className={`settings-option ${!isAutoDeleteEnabled ? 'disabled' : ''}`}>
+                  <div className="settings-option-info">
+                    <h3>
+                      Auto-delete Old Chats
+                      {!isAutoDeleteAvailable && (
+                        <span className="coming-soon-badge">Coming Soon</span>
+                      )}
+                      {isAutoDeleteAvailable && !isAutoDeleteEnabled && (
+                        <span className="beta-required-badge">Enable in Beta Features</span>
+                      )}
+                    </h3>
+                    <p>
+                      Automatically delete chat sessions after a certain period (pinned chats
+                      preserved)
+                    </p>
+                  </div>
+                  <div className="settings-option-control">
+                    <select
+                      value={settings.auto_delete_days || 'never'}
+                      className="settings-select"
+                      disabled={!isAutoDeleteEnabled}
+                      onChange={(e) => {
+                        const value = e.target.value === 'never' ? null : parseInt(e.target.value)
+                        saveSettings({ auto_delete_days: value })
+                      }}
+                    >
+                      <option value="never">Never</option>
+                      <option value="30">30 days</option>
+                      <option value="60">60 days</option>
+                      <option value="90">90 days</option>
+                    </select>
+                  </div>
+                </div>
+              )
+            })()}
 
             <h2>Data Management</h2>
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Query
 
 from core.dependencies import (
     get_session_repository,
+    get_settings_repository,
     get_openrouter_client,
     verify_api_key,
 )
@@ -13,7 +14,7 @@ from core.distributed_rate_limit import check_distributed_rate_limit
 from core.sanitization import sanitize_title
 from core.cache import Cache
 from config import settings
-from db import SessionRepository
+from db import SessionRepository, SettingsRepository
 from schemas import (
     QueryRequest,
     ContinueRequest,
@@ -706,6 +707,69 @@ async def delete_all_sessions(
         message = f"{deleted_count} sessions deleted (pinned sessions preserved)"
 
     return {"message": message, "deleted_count": deleted_count}
+
+
+@router.post("s/cleanup")
+async def cleanup_old_sessions(
+    session_repo: SessionRepository = Depends(get_session_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+    _auth: bool = Depends(verify_api_key),
+):
+    """
+    Cleanup Old Sessions (Auto-Delete)
+
+    Runs the auto-delete cleanup based on user settings.
+    Deletes sessions older than the configured number of days.
+
+    This endpoint is designed to be called:
+    - Manually by the user
+    - By a cron job or scheduled task
+    - On application startup
+
+    **Requirements:**
+    - User must have `auto_delete` beta feature enabled
+    - User must have `auto_delete_days` configured (30, 60, or 90)
+
+    Pinned sessions are always preserved.
+    """
+    # Get user settings
+    user_settings = await settings_repo.get(user_id="default")
+
+    # Check if auto_delete beta feature is enabled
+    if "auto_delete" not in (user_settings.enabled_beta_features or []):
+        return {
+            "message": "Auto-delete feature is not enabled",
+            "deleted_count": 0,
+            "skipped": True,
+        }
+
+    # Check if auto_delete_days is configured
+    if user_settings.auto_delete_days is None:
+        return {
+            "message": "Auto-delete is enabled but no retention period configured",
+            "deleted_count": 0,
+            "skipped": True,
+        }
+
+    # Validate days value
+    valid_days = [30, 60, 90]
+    if user_settings.auto_delete_days not in valid_days:
+        return {
+            "message": f"Invalid auto_delete_days value. Must be one of: {valid_days}",
+            "deleted_count": 0,
+            "skipped": True,
+        }
+
+    # Run cleanup (never delete pinned sessions)
+    deleted_count = await session_repo.soft_delete_older_than(
+        days=user_settings.auto_delete_days, include_pinned=False
+    )
+
+    return {
+        "message": f"Auto-delete completed. {deleted_count} sessions older than {user_settings.auto_delete_days} days deleted.",
+        "deleted_count": deleted_count,
+        "retention_days": user_settings.auto_delete_days,
+    }
 
 
 @router.get("s/export")

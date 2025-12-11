@@ -25,11 +25,9 @@ const GhostIcon = () => (
 // Color palette for different models
 const MODEL_COLORS = {
   'NVIDIA Nemotron 9B': '#76b900',
-  'NVIDIA: Nemotron Nano 12B 2 VL': '#76b900',
-  'Gemma 3 27B': '#4285f4',
+  'Llama 3.2 3B': '#0467df',
+  'Mistral Devstral 2 2512': '#ff7000',
   'GPT OSS 20B': '#10a37f',
-  'Grok 4.1 Fast': '#a78bfa',
-  'Grok 4.1 Fast (Chairman)': '#a78bfa',
 }
 
 function getModelColor(modelName) {
@@ -273,7 +271,20 @@ function IncognitoChat({ isOpen, onClose, availableModels, selectedModels }) {
       }
     } catch (error) {
       console.error('Incognito chat error:', error)
-      addMessage('error', error.response?.data?.detail || 'Something went wrong. Please try again.')
+      // Handle validation errors (422) which return an array of error objects
+      let errorMessage = 'Something went wrong. Please try again.'
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail
+        if (typeof detail === 'string') {
+          errorMessage = detail
+        } else if (Array.isArray(detail)) {
+          // Pydantic validation errors are arrays of objects with 'msg' field
+          errorMessage = detail.map((err) => err.msg || JSON.stringify(err)).join(', ')
+        } else if (typeof detail === 'object') {
+          errorMessage = detail.msg || JSON.stringify(detail)
+        }
+      }
+      addMessage('error', errorMessage)
     } finally {
       setLoading(false)
       setCurrentStep('')

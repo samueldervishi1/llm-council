@@ -88,24 +88,41 @@ def with_circuit_breaker(
                 return await func(*args, **kwargs)
 
             try:
-                # Call function through circuit breaker
-                return await breaker.call_async(func, *args, **kwargs)
-            except Exception as e:
-                # Check if this is a circuit open error
-                error_name = type(e).__name__
-                if error_name == "CircuitBreakerError":
+                # Check if circuit is open before calling
+                # current_state can be a string or an object with .name attribute
+                state = breaker.current_state
+                state_name = getattr(state, "name", str(state)).lower()
+
+                if state_name == "open":
                     logger.error(
                         f"Circuit breaker '{breaker_name}' is OPEN - requests blocked"
                     )
                     if fallback:
-                        return (
-                            fallback(*args, **kwargs)
-                            if not callable(getattr(fallback, "__call__", None))
-                            else await fallback(*args, **kwargs)
-                        )
+                        return fallback(*args, **kwargs)
                     raise Exception(
                         "Service temporarily unavailable (circuit breaker open)"
                     )
+
+                # Call the async function directly (bypass call_async which needs Tornado)
+                # We track failures manually via the breaker's state
+                try:
+                    result = await func(*args, **kwargs)
+                    # Record success - reset fail counter
+                    if hasattr(breaker, "close"):
+                        breaker.close()  # This resets the breaker to closed state
+                    return result
+                except Exception:
+                    # Record failure - this may trip the breaker
+                    if hasattr(breaker, "_inc_counter"):
+                        breaker._inc_counter()
+                    # Check if we should open the circuit
+                    if breaker.fail_counter >= breaker.fail_max:
+                        if hasattr(breaker, "open"):
+                            breaker.open()
+                    raise
+
+            except Exception:
+                # Re-raise the exception
                 raise
 
         @wraps(func)
@@ -157,9 +174,11 @@ def get_circuit_breaker_status(breaker_name: str = "default") -> dict:
         return {"state": "disabled", "fail_counter": 0}
 
     try:
+        state = breaker.current_state
+        state_name = getattr(state, "name", str(state))
         return {
             "name": breaker.name,
-            "state": breaker.current_state.name,
+            "state": state_name,
             "fail_counter": breaker.fail_counter,
             "fail_max": breaker.fail_max,
             "reset_timeout": breaker.reset_timeout,

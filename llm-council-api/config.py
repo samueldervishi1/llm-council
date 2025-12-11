@@ -60,8 +60,8 @@ COUNCIL_MODELS = [
         "provider": "openrouter",
     },
     {
-        "id": "microsoft/phi-3-mini-128k-instruct:free",
-        "name": "Phi-3 Mini",
+        "id": "mistralai/devstral-2512:free",
+        "name": "Mistral Devstral 2 2512",
         "provider": "openrouter",
     },
     {"id": "openai/gpt-oss-20b:free", "name": "GPT OSS 20B", "provider": "openrouter"},
@@ -69,7 +69,7 @@ COUNCIL_MODELS = [
 
 # Chairman model - using Qwen which is very stable
 CHAIRMAN_MODEL = {
-    "id": "qwen/qwen-2-7b-instruct:free",
-    "name": "Qwen 2 7B",
+    "id": "openai/gpt-oss-20b:free",
+    "name": "GPT OSS 20B",
     "provider": "openrouter",
 }

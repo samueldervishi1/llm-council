@@ -1,22 +1,26 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import App from './App.jsx'
-import SettingsPage from './pages/SettingsPage.jsx'
-import SharedSession from './pages/SharedSession.jsx'
-import { ErrorBoundary } from './components'
+import { ErrorBoundary, AppLoader } from './components'
+
+// Lazy load pages - only load when needed
+const App = lazy(() => import('./App.jsx'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'))
+const SharedSession = lazy(() => import('./pages/SharedSession.jsx'))
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/sessions/:sessionId" element={<App />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/shared/:shareToken" element={<SharedSession />} />
-        </Routes>
+        <Suspense fallback={<AppLoader />}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/sessions/:sessionId" element={<App />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/shared/:shareToken" element={<SharedSession />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ErrorBoundary>
   </StrictMode>

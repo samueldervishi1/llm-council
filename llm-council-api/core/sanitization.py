@@ -31,7 +31,8 @@ def sanitize_text(text: Optional[str], max_length: Optional[int] = None) -> str:
     text = str(text)
 
     # Remove HTML/XML tags (basic protection)
-    text = re.sub(r"<[^>]*>", "", text)
+    # Limit tag matching to prevent ReDoS with unclosed tags
+    text = re.sub(r"<[^>]{0,1000}>", "", text)
 
     # Remove control characters except newline, carriage return, and tab
     # This prevents things like null bytes, bell characters, etc.
@@ -39,7 +40,9 @@ def sanitize_text(text: Optional[str], max_length: Optional[int] = None) -> str:
 
     # Normalize excessive whitespace (but preserve single newlines)
     text = re.sub(r"[ \t]+", " ", text)  # Multiple spaces/tabs -> single space
-    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)  # 3+ newlines -> 2 newlines
+    # Use non-ambiguous pattern: match 3+ consecutive newlines (with optional spaces/tabs between)
+    # Avoid \s* between \n as \s includes \n, causing ambiguity
+    text = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)  # 3+ newlines -> 2 newlines
 
     # Strip leading/trailing whitespace
     text = text.strip()
