@@ -6,11 +6,13 @@ from fastapi import Header, HTTPException, Query, status
 from clients import OpenRouterClient
 from config import settings
 from db import get_database, SessionRepository, SettingsRepository
+from db.folder_repository import FolderRepository
 
 # Singleton client instance
 _openrouter_client: OpenRouterClient | None = None
 _session_repository: SessionRepository | None = None
 _settings_repository: SettingsRepository | None = None
+_folder_repository: FolderRepository | None = None
 
 
 async def get_session_repository() -> SessionRepository:
@@ -29,6 +31,15 @@ async def get_settings_repository() -> SettingsRepository:
         database = await get_database()
         _settings_repository = SettingsRepository(database)
     return _settings_repository
+
+
+async def get_folder_repository() -> FolderRepository:
+    """Get the folder repository dependency."""
+    global _folder_repository
+    if _folder_repository is None:
+        database = await get_database()
+        _folder_repository = FolderRepository(database)
+    return _folder_repository
 
 
 def get_openrouter_client() -> OpenRouterClient:

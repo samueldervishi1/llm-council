@@ -24,6 +24,7 @@ function useCouncil() {
     const saved = localStorage.getItem('llm-council-selected-models')
     return saved ? JSON.parse(saved) : []
   })
+  const [folders, setFolders] = useState([])
 
   // Persist mode to localStorage when it changes
   useEffect(() => {
@@ -92,11 +93,63 @@ function useCouncil() {
     }
   }, [])
 
+  const fetchFolders = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/folders')
+      setFolders(res.data.folders)
+    } catch (error) {
+      console.error('Error fetching folders:', error)
+    }
+  }, [])
+
+  const createFolder = async (name, color = null, icon = null) => {
+    try {
+      const res = await apiClient.post('/folders', { name, color, icon })
+      await fetchFolders()
+      return res.data.folder
+    } catch (error) {
+      console.error('Error creating folder:', error)
+      throw error
+    }
+  }
+
+  const updateFolder = async (folderId, updates) => {
+    try {
+      await apiClient.patch(`/folders/${folderId}`, updates)
+      await fetchFolders()
+    } catch (error) {
+      console.error('Error updating folder:', error)
+      throw error
+    }
+  }
+
+  const deleteFolder = async (folderId) => {
+    try {
+      await apiClient.delete(`/folders/${folderId}`)
+      await fetchFolders()
+      await fetchSessions() // Refresh sessions as they may have been moved out of folder
+    } catch (error) {
+      console.error('Error deleting folder:', error)
+      throw error
+    }
+  }
+
+  const moveSessionToFolder = async (targetSessionId, targetFolderId) => {
+    try {
+      await apiClient.patch(`/session/${targetSessionId}/folder`, { folder_id: targetFolderId })
+      await fetchSessions()
+    } catch (error) {
+      console.error('Error moving session to folder:', error)
+      throw error
+    }
+  }
+
   useEffect(() => {
     if (!appLoading) {
       fetchSessions()
+      fetchFolders()
     }
-  }, [appLoading, fetchSessions])
+  }, [appLoading, fetchSessions, fetchFolders])
 
   const addMessage = (type, content, modelName = null, extras = {}) => {
     setMessages((prev) => [...prev, { type, content, modelName, timestamp: new Date(), ...extras }])
@@ -486,6 +539,12 @@ function useCouncil() {
     exportSession,
     sessionLoadError,
     isLoadingSession,
+    // Folder management
+    folders,
+    createFolder,
+    updateFolder,
+    deleteFolder,
+    moveSessionToFolder,
   }
 }
 

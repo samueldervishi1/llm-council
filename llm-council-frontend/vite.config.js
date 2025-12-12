@@ -12,9 +12,9 @@ export default defineConfig({
           // React core in separate chunk (cached longer)
           'react-vendor': ['react', 'react-dom'],
           // Router in separate chunk
-          'router': ['react-router-dom'],
+          router: ['react-router-dom'],
           // Markdown rendering (heavy)
-          'markdown': ['react-markdown', 'rehype-sanitize'],
+          markdown: ['react-markdown', 'rehype-sanitize'],
         },
       },
     },

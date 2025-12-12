@@ -64,10 +64,10 @@ COUNCIL_MODELS = [
         "name": "Mistral Devstral 2 2512",
         "provider": "openrouter",
     },
-    {"id": "openai/gpt-oss-20b:free", "name": "GPT OSS 20B", "provider": "openrouter"},
 ]
 
-# Chairman model - using Qwen which is very stable
+# Chairman model - using GPT OSS 20B which is very stable
+# Note: Chairman is separate from council members to avoid duplicate entries
 CHAIRMAN_MODEL = {
     "id": "openai/gpt-oss-20b:free",
     "name": "GPT OSS 20B",

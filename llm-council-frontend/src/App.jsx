@@ -9,6 +9,7 @@ import {
   Sidebar,
   CommandPalette,
   IncognitoChat,
+  PWAInstallPrompt,
 } from './components'
 import useCouncil from './hooks/useCouncil'
 import useTheme from './hooks/useTheme'
@@ -47,6 +48,12 @@ function App() {
     exportSession,
     sessionLoadError,
     isLoadingSession,
+    // Folder management
+    folders,
+    createFolder,
+    updateFolder,
+    deleteFolder,
+    moveSessionToFolder,
   } = useCouncil()
 
   const { theme, toggleTheme } = useTheme()
@@ -202,6 +209,11 @@ function App() {
               handleNewChat()
               toggleSidebar()
             }}
+            folders={folders}
+            onCreateFolder={createFolder}
+            onUpdateFolder={updateFolder}
+            onDeleteFolder={deleteFolder}
+            onMoveSessionToFolder={moveSessionToFolder}
           />
         </>
       )}
@@ -214,8 +226,6 @@ function App() {
         onExport={exportSession}
         onBranch={handleBranch}
         branchingEnabled={userSettings.enabled_beta_features?.includes('branching')}
-        theme={theme}
-        onToggleTheme={toggleTheme}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onOpenIncognito={() => setIsIncognitoOpen(true)}
       />
@@ -295,6 +305,8 @@ function App() {
         availableModels={availableModels}
         selectedModels={selectedModels}
       />
+
+      <PWAInstallPrompt />
     </div>
   )
 }

@@ -24,6 +24,14 @@ from .user_settings import (
     UserSettingsUpdate,
     UserSettingsResponse,
 )
+from .folder import (
+    Folder,
+    FolderCreateRequest,
+    FolderUpdateRequest,
+    FolderResponse,
+    FolderListResponse,
+    MoveSessionRequest,
+)
 
 __all__ = [
     "ModelProvider",
@@ -48,4 +56,10 @@ __all__ = [
     "UserSettings",
     "UserSettingsUpdate",
     "UserSettingsResponse",
+    "Folder",
+    "FolderCreateRequest",
+    "FolderUpdateRequest",
+    "FolderResponse",
+    "FolderListResponse",
+    "MoveSessionRequest",
 ]

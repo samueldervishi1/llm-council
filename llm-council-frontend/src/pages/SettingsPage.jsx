@@ -81,8 +81,6 @@ function SettingsPage() {
         sessionId={sessionId}
         onShare={shareSession}
         onExport={exportSession}
-        theme={theme}
-        onToggleTheme={toggleTheme}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
