@@ -66,25 +66,3 @@ jobs:
           git add version.json llm-council-frontend/package.json
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install docs dependencies
-        run: pip install -r docs/requirements.txt
-
-      - name: Build docs
-        run: |
-          cd docs
-          mkdocs build
-
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v3
-        with:
-          publish-dir: './docs/site'
-          production-deploy: true
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
