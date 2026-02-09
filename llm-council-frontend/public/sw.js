@@ -34,7 +34,8 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
 
   // Skip API requests - always go to network
-  if (event.request.url.includes('/api/') || event.request.url.includes('onrender.com')) {
+  const url = new URL(event.request.url)
+  if (url.pathname.startsWith('/api/') || url.hostname.endsWith('.onrender.com')) {
     return
   }
 
